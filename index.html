@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>داشبورد عملکرد اپراتورها | SLA Ops</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>داشبورد عملکرد اپراتورها</h1>
+    <div class="sub"><span class="status-dot"></span>پایش وضعیت SLA — داده‌ها به‌صورت خودکار از فایل اکسل به‌روزرسانی می‌شن</div>
+  </div>
+  <div class="meta" id="meta-updated">در حال بارگذاری...</div>
+</header>
+
+<main>
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>میانگین امتیاز به تفکیک سرگروه</h2>
+      <div class="panel-sub">میانگین امتیاز هفتگی اپراتورهای هر سرگروه (از ۵)</div>
+      <div class="chart-wrap"><canvas id="chartScore"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>سهم اپراتورها به تفکیک شرکت</h2>
+      <div class="panel-sub">تعداد اپراتور فعال در هر شرکت</div>
+      <div class="chart-wrap"><canvas id="chartCompany"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>مجموع سفارشات به تفکیک سرگروه</h2>
+      <div class="panel-sub">مجموع سفارشات صادرشده در دو هفته اخیر</div>
+      <div class="chart-wrap"><canvas id="chartOrders"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>میانگین زمان صدور (OCT) به تفکیک سرگروه</h2>
+      <div class="panel-sub">میانگین دقیقه صرف‌شده برای هر سفارش — هرچه کمتر بهتر</div>
+      <div class="chart-wrap"><canvas id="chartOct"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:4px;">
+    <h2>جدول اپراتورها</h2>
+    <div class="panel-sub">جست‌وجو، مرتب‌سازی و بررسی جزئیات هر اپراتور</div>
+    <div class="search-row">
+      <input id="searchBox" type="text" placeholder="جست‌وجوی نام اپراتور...">
+      <select id="leadFilter"><option value="">همه سرگروه‌ها</option></select>
+      <select id="companyFilter"><option value="">همه شرکت‌ها</option></select>
+      <span class="count-tag" id="rowCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table class="ops">
+        <thead>
+          <tr>
+            <th data-key="name">نام اپراتور</th>
+            <th data-key="company">شرکت</th>
+            <th data-key="lead">سرگروه</th>
+            <th data-key="shift">شیفت</th>
+            <th data-key="total_orders">مجموع سفارشات</th>
+            <th data-key="avg_score">میانگین امتیاز</th>
+            <th data-key="salary">حقوق</th>
+          </tr>
+        </thead>
+        <tbody id="opsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>ساخته‌شده از داده‌های اکسل SLA &middot; میزبانی روی GitHub Pages &middot; به‌روزرسانی خودکار با هر پوش فایل اکسل</footer>
+
+<script src="js/script.js"></script>
+</body>
+</html>
