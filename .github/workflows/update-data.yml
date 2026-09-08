@@ -1,0 +1,65 @@
+name: Update dashboard data
+
+on:
+  # Primary source: pulls fresh data straight from the Google Sheet.
+  # Runs every 15 minutes and can also be triggered manually.
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+  # Optional secondary source: if you still push an updated xlsx file,
+  # this also rebuilds from that instead.
+  push:
+    branches: [main]
+    paths:
+      - '*.xlsx'
+      - 'scripts/build_data.py'
+
+permissions:
+  contents: write
+
+jobs:
+  sync-from-google-sheet:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          # no pip install needed — this script only uses the standard library
+
+      - name: Regenerate data/data.json from Google Sheet
+        run: python scripts/build_data_from_gsheet.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/data.json
+          git diff --staged --quiet || git commit -m "chore: refresh dashboard data from Google Sheet [automated]"
+          git push
+
+  sync-from-excel:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install openpyxl
+
+      - name: Regenerate data/data.json from Excel
+        run: python scripts/build_data.py Operators_Sla_Performance.xlsx data/data.json
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/data.json
+          git diff --staged --quiet || git commit -m "chore: refresh dashboard data from Excel [automated]"
+          git push
