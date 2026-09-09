@@ -35,6 +35,7 @@ HEADERS = {
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
+    'bug_price': 'Operators Bug Price',
     'orders': 'orders_handled',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
@@ -90,6 +91,7 @@ def build(sheet_id, gid, out_path):
         avg1 = num(cell(r, idx['avg_score'], 0))
         avg2 = num(cell(r, idx['avg_score'], 1))
         salary = num(cell(r, idx['salary'], 0))
+        bug_price = num(cell(r, idx['bug_price'], 0))
         operators.append({
             'name': name,
             'company': cell(r, idx['company'], 0),
@@ -100,6 +102,7 @@ def build(sheet_id, gid, out_path):
             'total_orders': orders1 + orders2,
             'avg_score': round((avg1 + avg2) / 2, 2),
             'salary': salary,
+            'bug_price': bug_price,
         })
 
     team_leads = sorted(set(o['lead'] for o in operators if o['lead']))
