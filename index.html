@@ -43,13 +43,23 @@
     </div>
   </div>
 
+  <div class="panel" style="margin-top:4px; margin-bottom:16px;">
+    <h2>روند هفتگی امتیاز سرگروه‌ها</h2>
+    <div class="panel-sub">میانگین امتیاز هر سرگروه در طول هفته‌های اخیر — با هر آپدیت هفتگی شیت یک نقطه‌ی جدید اضافه می‌شه</div>
+    <div class="chart-wrap" style="height:320px;"><canvas id="chartTrend"></canvas></div>
+  </div>
+
   <div class="panel" style="margin-top:4px;">
     <h2>جدول اپراتورها</h2>
-    <div class="panel-sub">جست‌وجو، مرتب‌سازی و بررسی جزئیات هر اپراتور</div>
+    <div class="panel-sub">جست‌وجو، فیلتر و بررسی جزئیات هر اپراتور</div>
     <div class="search-row">
       <input id="searchBox" type="text" placeholder="جست‌وجوی نام اپراتور...">
       <select id="leadFilter"><option value="">همه سرگروه‌ها</option></select>
-      <select id="companyFilter"><option value="">همه شرکت‌ها</option></select>
+      <select id="shiftFilter"><option value="">همه شیفت‌ها</option></select>
+      <span class="range-label">امتیاز از</span>
+      <input id="scoreMin" type="number" min="0" max="5" step="0.1" placeholder="۰" style="width:70px;">
+      <span class="range-label">تا</span>
+      <input id="scoreMax" type="number" min="0" max="5" step="0.1" placeholder="۵" style="width:70px;">
       <span class="count-tag" id="rowCount"></span>
     </div>
     <div class="table-scroll">
