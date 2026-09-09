@@ -18,6 +18,7 @@ Defaults:
     output_json = data/data.json
 """
 import sys
+import os
 import csv
 import io
 import json
@@ -67,7 +68,39 @@ def build_column_index(header_row):
     return idx
 
 
-def build(sheet_id, gid, out_path):
+def update_history(history_path, team_lead_summary):
+    """Appends this week's average score per team lead to a running
+    history file, so a weekly trend can be charted over time. Only one
+    entry is kept per ISO week — if this runs again in the same week,
+    it overwrites that week's numbers instead of duplicating them."""
+    week_key = datetime.now(timezone.utc).strftime('%G-W%V')
+
+    history = []
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, encoding='utf-8') as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            history = []
+
+    entry = next((h for h in history if h['week'] == week_key), None)
+    if entry is None:
+        entry = {'week': week_key, 'scores': {}}
+        history.append(entry)
+
+    for row in team_lead_summary:
+        lead, avg_score = row[0], row[4]
+        entry['scores'][lead] = round(avg_score, 2)
+
+    history.sort(key=lambda h: h['week'])
+
+    with open(history_path, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False)
+
+    return history
+
+
+def build(sheet_id, gid, out_path, history_path):
     rows = fetch_csv(sheet_id, gid)
     header_row = rows[0]
     idx = build_column_index(header_row)
@@ -124,10 +157,13 @@ def build(sheet_id, gid, out_path):
 
     total_salary = sum(o['salary'] for o in operators)
 
+    team_lead_summary = agg('lead', team_leads)
+    weekly_trend = update_history(history_path, team_lead_summary)
+
     payload = {
         'generated_at': datetime.now(timezone.utc).isoformat(),
         'source': f'google_sheet:{sheet_id}:gid={gid}',
-        'team_leads': agg('lead', team_leads),
+        'team_leads': team_lead_summary,
         'companies': agg('company', companies),
         'bugs': [
             ['غیرمالی (N.F.B)', 0],
@@ -136,17 +172,20 @@ def build(sheet_id, gid, out_path):
             ['مجموع کل', 0],
         ],
         'total_salary': total_salary,
+        'weekly_trend': weekly_trend,
         'operators': operators,
     }
 
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False)
 
-    print(f'wrote {out_path} ({len(operators)} operators, total_salary={total_salary})')
+    print(f'wrote {out_path} ({len(operators)} operators, total_salary={total_salary}, '
+          f'history now has {len(weekly_trend)} week(s))')
 
 
 if __name__ == '__main__':
     sheet_id = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SHEET_ID
     gid = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_GID
     out_path = sys.argv[3] if len(sys.argv) > 3 else 'data/data.json'
-    build(sheet_id, gid, out_path)
+    history_path = sys.argv[4] if len(sys.argv) > 4 else 'data/history.json'
+    build(sheet_id, gid, out_path, history_path)
