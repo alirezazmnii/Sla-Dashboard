@@ -67,7 +67,7 @@
   font-weight:400;
   font-display:swap;
 }
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 
 :root{
   --bg:#0E1013;
@@ -94,7 +94,7 @@ body{
   line-height:1.6;
   min-height:100vh;
 }
-.num{font-family:'JetBrains Mono', monospace; font-variant-numeric: tabular-nums;}
+.num{font-family:'IRANSans','Vazirmatn',sans-serif; font-variant-numeric: tabular-nums;}
 header{
   padding:28px clamp(16px,4vw,48px) 20px;
   display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:12px;
@@ -167,6 +167,8 @@ table.ops tbody tr:hover{background:var(--panel-2);}
   padding:8px 12px; border-radius:8px; font-family:inherit; font-size:13px;
 }
 .search-row input{flex:1; min-width:180px;}
+.search-row input[type="number"]{flex:none; min-width:0; text-align:center;}
+.range-label{color:var(--muted); font-size:12.5px; white-space:nowrap;}
 .table-scroll{max-height:480px; overflow:auto; border-radius:8px;}
 .count-tag{color:var(--muted); font-size:12px;}
 .error-banner{
