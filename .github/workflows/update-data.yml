@@ -24,19 +24,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check sync toggle
+        id: toggle
+        run: |
+          if [ "$(cat sync-control.txt | tr -d '[:space:]')" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Sync is turned OFF (sync-control.txt) — skipping this run."
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.toggle.outputs.enabled == 'true'
         with:
           python-version: '3.12'
           # no pip install needed — this script only uses the standard library
 
       - name: Regenerate data/data.json from Google Sheet
+        if: steps.toggle.outputs.enabled == 'true'
         run: python scripts/build_data_from_gsheet.py
 
       - name: Commit updated data
+        if: steps.toggle.outputs.enabled == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/data.json
+          git add data/data.json data/history.json
           git diff --staged --quiet || git commit -m "chore: refresh dashboard data from Google Sheet [automated]"
           git push
 
