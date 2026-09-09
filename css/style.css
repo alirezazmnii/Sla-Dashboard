@@ -1,28 +1,70 @@
 /* ---------- Font ----------
-   IRANSans is a licensed commercial font, so it isn't bundled here.
-   Drop your own licensed files into /fonts (see fonts/README.md for
-   the exact filenames expected). Until then, the stack below falls
-   back to Vazirmatn (Google Fonts, loaded further down) automatically.
+   IRANSansX (licensed, provided by the user) is self-hosted here in
+   /fonts, full weight range. If these files are ever removed, the
+   stack below falls back to Vazirmatn (Google Fonts) automatically.
 */
 @font-face{
   font-family:'IRANSans';
-  src: url('../fonts/IRANSansWeb_Regular.woff2') format('woff2'),
-       url('../fonts/IRANSansWeb_Regular.woff') format('woff');
+  src: url('../fonts/IRANSansWeb_Light.woff2') format('woff2');
+  font-weight:300;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_Regular.woff2') format('woff2');
   font-weight:400;
   font-display:swap;
 }
 @font-face{
   font-family:'IRANSans';
-  src: url('../fonts/IRANSansWeb_Medium.woff2') format('woff2'),
-       url('../fonts/IRANSansWeb_Medium.woff') format('woff');
+  src: url('../fonts/IRANSansWeb_Medium.woff2') format('woff2');
   font-weight:500;
   font-display:swap;
 }
 @font-face{
   font-family:'IRANSans';
-  src: url('../fonts/IRANSansWeb_Bold.woff2') format('woff2'),
-       url('../fonts/IRANSansWeb_Bold.woff') format('woff');
+  src: url('../fonts/IRANSansWeb_DemiBold.woff2') format('woff2');
+  font-weight:600;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_Bold.woff2') format('woff2');
   font-weight:700;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_ExtraBold.woff2') format('woff2');
+  font-weight:800;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_Heavy.woff2') format('woff2');
+  font-weight:850;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_Black.woff2') format('woff2');
+  font-weight:900;
+  font-display:swap;
+}
+@font-face{
+  font-family:'IRANSans';
+  src: url('../fonts/IRANSansWeb_ExtraBlack.woff2') format('woff2');
+  font-weight:950;
+  font-display:swap;
+}
+/* Optional alternate face with Persian (Farsi) digits baked in — not
+   used by default (KPIs intentionally use Western tabular numerals
+   via JetBrains Mono), but available if you want to switch later:
+   just use font-family:'IRANSansFaNum' wherever you want Farsi digits. */
+@font-face{
+  font-family:'IRANSansFaNum';
+  src: url('../fonts/IRANSansWeb_FaNum.woff2') format('woff2');
+  font-weight:400;
   font-display:swap;
 }
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
