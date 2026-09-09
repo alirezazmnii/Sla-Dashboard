@@ -135,6 +135,7 @@ function renderTable(data){
         <td class="num">${(o.total_orders||0).toLocaleString('en-US')}</td>
         <td><span class="score-pill num" style="background:${sc.bg};color:${sc.fg}">${o.avg_score.toFixed(2)}</span></td>
         <td class="num">${(o.salary||0).toLocaleString('en-US')}</td>
+        <td class="num">${(o.bug_price||0).toLocaleString('en-US')}</td>
       </tr>`;
     }).join('');
   }
