@@ -109,6 +109,20 @@ header .meta{
 }
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);margin-left:6px;box-shadow:0 0 8px var(--teal);}
 
+.category-bar{
+  padding:14px clamp(16px,4vw,48px) 0; max-width:1400px; margin:0 auto;
+}
+.category-switch{
+  display:inline-flex; gap:4px; background:var(--panel); border:1px solid var(--border);
+  border-radius:10px; padding:4px;
+}
+.category-switch button{
+  font-family:inherit; font-size:13px; color:var(--muted); background:transparent; border:none;
+  padding:7px 16px; border-radius:7px; cursor:pointer; transition:background .15s, color .15s;
+}
+.category-switch button:hover{color:var(--text);}
+.category-switch button.active{background:var(--panel-2); color:var(--teal); font-weight:600;}
+
 main{padding: 20px clamp(16px,4vw,48px) 56px; max-width:1400px; margin:0 auto;}
 
 .kpi-row{
