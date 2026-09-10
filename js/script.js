@@ -136,40 +136,43 @@ function renderCharts(){
 }
 
 function renderTrendChart(){
-  const history = DATA.weekly_trend || [];
+  const operators = filteredOperators();
   const wrap = document.getElementById('chartTrend').parentElement;
   const oldNote = wrap.querySelector('.trend-note');
   if(oldNote) oldNote.remove();
 
-  if(!history.length || !history.some(h => h.categories && h.categories[currentCategory])){
+  const leads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
+
+  if(!leads.length){
     destroyChart('chartTrend');
     wrap.insertAdjacentHTML('beforeend',
-      '<div class="trend-note" style="color:var(--muted);font-size:13px;padding:12px 0;">هنوز داده‌ی تاریخی کافی برای این دسته وجود نداره — از هفته‌ی بعد این نمودار خودش کامل می‌شه.</div>');
+      '<div class="trend-note" style="color:var(--muted);font-size:13px;padding:12px 0;">داده‌ای برای نمایش وجود نداره.</div>');
     return;
   }
 
-  const weeks = history.map(h => h.week);
-  const leads = [...new Set(history.flatMap(h => Object.keys((h.categories && h.categories[currentCategory]) || {})))].sort();
   const palette = ['#33D6BC','#7C93F0','#F0A94E','#E8615C','#B48CE0','#4FC3E8','#E0A5D8','#8FD16B','#E0C05C','#C79BE0'];
 
-  const datasets = leads.map((lead, i) => ({
-    label: lead,
-    data: history.map(h => {
-      const scores = h.categories && h.categories[currentCategory];
-      return (scores && lead in scores) ? scores[lead] : null;
-    }),
-    borderColor: palette[i % palette.length],
-    backgroundColor: palette[i % palette.length],
-    spanGaps: true,
-    tension: 0.3,
-    pointRadius: 3,
-    borderWidth: 2,
-  }));
+  const datasets = leads.map((lead, i) => {
+    const subset = operators.filter(o => o.lead === lead);
+    const count = subset.length;
+    const avg1 = count ? subset.reduce((s,o)=>s+(o.avg1||0),0) / count : 0;
+    const avg2 = count ? subset.reduce((s,o)=>s+(o.avg2||0),0) / count : 0;
+    return {
+      label: lead,
+      data: [+avg1.toFixed(2), +avg2.toFixed(2)],
+      borderColor: palette[i % palette.length],
+      backgroundColor: palette[i % palette.length],
+      spanGaps: true,
+      tension: 0.3,
+      pointRadius: 4,
+      borderWidth: 2,
+    };
+  });
 
   destroyChart('chartTrend');
   charts['chartTrend'] = new Chart(document.getElementById('chartTrend'), {
     type:'line',
-    data:{ labels: weeks, datasets },
+    data:{ labels: ['هفته ۱', 'هفته ۲'], datasets },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } } },
@@ -182,10 +185,13 @@ function renderTrendChart(){
 }
 
 // ---------- Week-over-week change lists ----------
-function fmtDelta(v, digits){
+// invert=true means "lower is better" (used for OCT — less time per order is a win)
+function fmtDelta(v, digits, invert){
   if(!isFinite(v)) v = 0;
   const s = (v > 0 ? '+' : '') + v.toFixed(digits);
-  const color = v > 0 ? '#33D6BC' : (v < 0 ? '#E8615C' : 'var(--muted)');
+  const isGood = invert ? v < 0 : v > 0;
+  const isBad = invert ? v > 0 : v < 0;
+  const color = isGood ? '#33D6BC' : (isBad ? '#E8615C' : 'var(--muted)');
   return `<span style="color:${color}">${s}</span>`;
 }
 
@@ -231,7 +237,7 @@ function renderOperatorChangeList(){
       <td class="num">${(o.orders1||0).toLocaleString('en-US')} ← ${(o.orders2||0).toLocaleString('en-US')}</td>
       <td class="num">${fmtDelta(o.dOrders, 0)}</td>
       <td class="num">${(o.oct1||0).toLocaleString('en-US')} ← ${(o.oct2||0).toLocaleString('en-US')}</td>
-      <td class="num">${fmtDelta(o.dOct, 1)}</td>
+      <td class="num">${fmtDelta(o.dOct, 1, true)}</td>
       <td class="num">${(o.avg1||0).toFixed(1)} ← ${(o.avg2||0).toFixed(1)}</td>
       <td class="num">${fmtDelta(o.dScore, 2)}</td>
     </tr>`).join('');
@@ -268,7 +274,7 @@ function renderLeadChangeList(){
       <td class="num">${r.orders1.toLocaleString('en-US')} ← ${r.orders2.toLocaleString('en-US')}</td>
       <td class="num">${fmtDelta(r.dOrders, 0)}</td>
       <td class="num">${r.oct1.toFixed(1)} ← ${r.oct2.toFixed(1)}</td>
-      <td class="num">${fmtDelta(r.dOct, 1)}</td>
+      <td class="num">${fmtDelta(r.dOct, 1, true)}</td>
       <td class="num">${r.avg1.toFixed(2)} ← ${r.avg2.toFixed(2)}</td>
       <td class="num">${fmtDelta(r.dScore, 2)}</td>
     </tr>`).join('');
