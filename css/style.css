@@ -189,6 +189,13 @@ table.ops tbody tr:hover{background:var(--panel-2);}
   background:rgba(232,97,92,0.12); border:1px solid var(--coral); color:var(--coral);
   padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px;
 }
+.compact-list{padding:14px 16px 8px;}
+.compact-list table.ops{font-size:11.5px;}
+.compact-list table.ops thead th{padding:6px 7px; font-size:10px; white-space:normal;}
+.compact-list table.ops tbody td{padding:6px 7px; white-space:nowrap;}
+.compact-list .table-scroll{max-height:280px;}
+.compact-list .search-row{margin-bottom:8px;}
+.compact-list .search-row select{font-size:12px; padding:6px 10px;}
 footer{
   text-align:center; color:var(--muted); font-size:11.5px; padding:24px; border-top:1px solid var(--border);
 }
