@@ -36,14 +36,20 @@ CATEGORY_TABS = [
     ('Center Issue', 'center_issue'),
 ]
 
-# Header labels as they appear in row 1 of each tab. Duplicated labels
-# (week 1 vs week 2 columns) are matched in left-to-right order automatically.
+# Header labels as BASE keywords — matched by "starts with" (case-insensitive),
+# not exact equality. This is deliberate: the real sheet appends the week
+# number straight onto the label with inconsistent spacing (e.g. the actual
+# columns are "orders 1stweek-6" and "orders 2nd week-6" — note the missing
+# space in one and not the other). Matching only the prefix survives that
+# inconsistency and also self-adapts if a tab's wording differs slightly.
+# Duplicated labels (week 1 vs week 2 columns) are matched in left-to-right
+# order automatically.
 HEADERS = {
     'name': 'Operator',
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
-    'bug_price': 'Operators Bug Price',
+    'bug_price': 'Operators',
     'orders': 'orders',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
@@ -71,7 +77,11 @@ def fetch_csv_by_sheet_name(sheet_id, sheet_name):
 def build_column_index(header_row):
     idx = {}
     for field, label in HEADERS.items():
-        positions = [i for i, h in enumerate(header_row) if h.strip() == label]
+        label_norm = label.strip().lower()
+        positions = [
+            i for i, h in enumerate(header_row)
+            if h.strip().lower().startswith(label_norm)
+        ]
         idx[field] = positions
     return idx
 
@@ -79,7 +89,7 @@ def build_column_index(header_row):
 def parse_tab(rows, category):
     header_row = rows[0]
     idx = build_column_index(header_row)
-    data_rows = rows[2:]  # row 0 = headers, row 1 = "1st week-6"/"2nd week-6" sub-header
+    data_rows = rows[1:]  # row 0 = header; data starts immediately (single header row)
 
     def cell(row, positions, which):
         pos = positions[which] if which < len(positions) else (positions[0] if positions else None)

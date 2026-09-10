@@ -20,12 +20,15 @@ SHEET_ID = '1E5OU--FCwpW4dBMxRj9MmuBsKzKzGx76FDZ9AvfRJF0'
 CATEGORY_TABS = ['freelancer', 'Center Issue']
 
 # Keep this in sync with build_data_from_gsheet.py's HEADERS dict.
+# These are matched as case-insensitive PREFIXES, not exact equality —
+# the real headers append the week text with inconsistent spacing
+# (e.g. "orders 1stweek-6" vs "orders 2nd week-6").
 HEADERS = {
     'name': 'Operator',
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
-    'bug_price': 'Operators Bug Price',
+    'bug_price': 'Operators',
     'orders': 'orders',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
@@ -63,10 +66,11 @@ def main():
                 print(f'    [{i}] {h!r}')
 
         print()
-        print('  Matching against HEADERS dict:')
+        print('  Matching against HEADERS dict (prefix match, case-insensitive):')
         any_missing = False
         for field, label in HEADERS.items():
-            positions = [i for i, h in enumerate(header_row) if h.strip() == label]
+            label_norm = label.strip().lower()
+            positions = [i for i, h in enumerate(header_row) if h.strip().lower().startswith(label_norm)]
             status = positions if positions else 'NOT FOUND'
             if not positions:
                 any_missing = True
