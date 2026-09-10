@@ -49,17 +49,64 @@
       <div class="panel-sub">میانگین دقیقه صرف‌شده برای هر سفارش — هرچه کمتر بهتر</div>
       <div class="chart-wrap"><canvas id="chartOct"></canvas></div>
     </div>
-    <div class="panel">
-      <h2>سهم صدور: Freelancer در برابر Center Issue</h2>
-      <div class="panel-sub">درصد مجموع سفارشات صادرشده به تفکیک دسته — نسبت به کل صدورها</div>
-      <div class="chart-wrap"><canvas id="chartCategorySplit"></canvas></div>
-    </div>
   </div>
 
   <div class="panel" style="margin-top:4px; margin-bottom:16px;">
     <h2>روند هفتگی امتیاز سرگروه‌ها</h2>
     <div class="panel-sub">میانگین امتیاز هر سرگروه در طول هفته‌های اخیر — با هر آپدیت هفتگی شیت یک نقطه‌ی جدید اضافه می‌شه</div>
     <div class="chart-wrap" style="height:320px;"><canvas id="chartTrend"></canvas></div>
+  </div>
+
+  <div class="panel" style="margin-top:4px; margin-bottom:16px;">
+    <h2>بیشترین تغییرات اپراتورها نسبت به هفته‌ی قبل</h2>
+    <div class="panel-sub">۲۰ اپراتور با بزرگ‌ترین تغییر در سفارشات، OCT و امتیاز — هفته‌ی اول در مقابل دوم</div>
+    <div class="search-row">
+      <select id="opChangeLeadFilter"><option value="">همه سرگروه‌ها</option></select>
+      <span class="count-tag" id="opChangeCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table class="ops">
+        <thead>
+          <tr>
+            <th>نام اپراتور</th>
+            <th>سرگروه</th>
+            <th>سفارشات (هفته ۱ ← ۲)</th>
+            <th>Δ سفارش</th>
+            <th>OCT (هفته ۱ ← ۲)</th>
+            <th>Δ OCT</th>
+            <th>امتیاز (هفته ۱ ← ۲)</th>
+            <th>Δ امتیاز</th>
+          </tr>
+        </thead>
+        <tbody id="opChangeBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:4px; margin-bottom:16px;">
+    <h2>بیشترین تغییرات سرگروه‌ها نسبت به هفته‌ی قبل</h2>
+    <div class="panel-sub">۲۰ سرگروه با بزرگ‌ترین تغییر میانگین متریک‌ها — هفته‌ی اول در مقابل دوم</div>
+    <div class="search-row">
+      <select id="leadChangeLeadFilter"><option value="">همه سرگروه‌ها</option></select>
+      <span class="count-tag" id="leadChangeCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table class="ops">
+        <thead>
+          <tr>
+            <th>سرگروه</th>
+            <th>تعداد اپراتور</th>
+            <th>سفارشات (هفته ۱ ← ۲)</th>
+            <th>Δ سفارش</th>
+            <th>OCT (هفته ۱ ← ۲)</th>
+            <th>Δ OCT</th>
+            <th>امتیاز (هفته ۱ ← ۲)</th>
+            <th>Δ امتیاز</th>
+          </tr>
+        </thead>
+        <tbody id="leadChangeBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <div class="panel" style="margin-top:4px;">
