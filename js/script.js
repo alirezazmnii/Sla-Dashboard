@@ -131,7 +131,49 @@ function renderCharts(){
     }
   });
 
+  renderCategorySplitChart();
   renderTrendChart();
+}
+
+function renderCategorySplitChart(){
+  // Always computed from the FULL dataset (not the category switch) —
+  // its whole purpose is comparing freelancer vs center_issue.
+  const all = DATA.operators;
+  const byCategory = {};
+  all.forEach(o=>{
+    const cat = o.category || 'نامشخص';
+    byCategory[cat] = (byCategory[cat]||0) + (o.total_orders||0);
+  });
+  const total = Object.values(byCategory).reduce((s,v)=>s+v,0);
+  const labels = Object.keys(byCategory).map(k => CATEGORY_LABELS[k] || k);
+  const values = Object.values(byCategory);
+
+  destroyChart('chartCategorySplit');
+  charts['chartCategorySplit'] = new Chart(document.getElementById('chartCategorySplit'), {
+    type:'doughnut',
+    data:{
+      labels,
+      datasets:[{
+        data: values,
+        backgroundColor:['#7C93F0','#F0A94E','#33D6BC'],
+        borderColor:'#161A1F', borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } },
+        tooltip:{
+          callbacks:{
+            label: ctx => {
+              const pct = total ? (ctx.parsed/total*100).toFixed(1) : '0.0';
+              return `${ctx.label}: ${ctx.parsed.toLocaleString('en-US')} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function renderTrendChart(){
