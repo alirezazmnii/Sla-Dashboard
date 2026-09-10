@@ -36,18 +36,20 @@ CATEGORY_TABS = [
     ('Center Issue', 'center_issue'),
 ]
 
-# Header labels as they appear in row 1 of each tab. Duplicated labels
-# (week 1 vs week 2 columns) are matched in left-to-right order automatically.
+# Header labels as they appear in row 1 of each tab. Each field can list
+# more than one accepted spelling — the first one found wins. Duplicated
+# labels (week 1 vs week 2 columns) are matched in left-to-right order
+# automatically.
 HEADERS = {
-    'name': 'Operator',
-    'company': 'Company',
-    'shift': 'Work Shift',
-    'lead': 'Team Lead',
-    'bug_price': 'Operators Bug Price',
-    'orders': 'orders_handled',
-    'oct': 'OCT(min)',
-    'avg_score': 'average Score',
-    'salary': 'salary',
+    'name': ['Operator'],
+    'company': ['Company'],
+    'shift': ['Work Shift'],
+    'lead': ['Team Lead'],
+    'bug_price': ['Operators Bug Price'],
+    'orders': ['orders_handled', 'Orders Handled', 'orders', 'Total Orders', 'order_handled'],
+    'oct': ['OCT(min)', 'OCT (min)', 'OCT'],
+    'avg_score': ['average Score', 'Average Score', 'avg score'],
+    'salary': ['salary', 'Salary'],
 }
 
 
@@ -68,10 +70,24 @@ def fetch_csv_by_sheet_name(sheet_id, sheet_name):
     return list(csv.reader(io.StringIO(raw)))
 
 
+def normalize_header(s):
+    """Lowercase, collapse whitespace/underscores — makes header matching
+    tolerant of small formatting differences (extra spaces, capitalization,
+    underscore vs space) so a light edit to the sheet doesn't silently
+    zero out a column."""
+    return ' '.join(s.strip().lower().replace('_', ' ').split())
+
+
 def build_column_index(header_row):
     idx = {}
-    for field, label in HEADERS.items():
-        positions = [i for i, h in enumerate(header_row) if h.strip() == label]
+    normalized_headers = [normalize_header(h) for h in header_row]
+    for field, labels in HEADERS.items():
+        positions = []
+        for label in labels:
+            target = normalize_header(label)
+            positions = [i for i, h in enumerate(normalized_headers) if h == target]
+            if positions:
+                break
         idx[field] = positions
     return idx
 
@@ -79,6 +95,15 @@ def build_column_index(header_row):
 def parse_tab(rows, category):
     header_row = rows[0]
     idx = build_column_index(header_row)
+
+    # Diagnostic: if a critical column matched zero times, print the raw
+    # header row so the mismatch is visible in the Action log instead of
+    # silently producing zeros.
+    for field in ('orders', 'oct', 'avg_score', 'lead', 'company'):
+        if not idx[field]:
+            print(f'  [warn] tab category={category}: no column matched for '
+                  f'any of {HEADERS[field]} — raw header row was: {header_row}')
+
     data_rows = rows[2:]  # row 0 = headers, row 1 = "1st week-6"/"2nd week-6" sub-header
 
     def cell(row, positions, which):
