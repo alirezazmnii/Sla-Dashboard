@@ -5,6 +5,7 @@ let currentCategory = 'all';
 let charts = {}; // canvasId -> Chart instance
 
 const CATEGORY_LABELS = { all: 'همه', freelancer: 'Freelancer', center_issue: 'Center Issue' };
+const CHANGE_LIST_LIMIT = 20;
 
 async function loadData(){
   try{
@@ -131,49 +132,7 @@ function renderCharts(){
     }
   });
 
-  renderCategorySplitChart();
   renderTrendChart();
-}
-
-function renderCategorySplitChart(){
-  // Always computed from the FULL dataset (not the category switch) —
-  // its whole purpose is comparing freelancer vs center_issue.
-  const all = DATA.operators;
-  const byCategory = {};
-  all.forEach(o=>{
-    const cat = o.category || 'نامشخص';
-    byCategory[cat] = (byCategory[cat]||0) + (o.total_orders||0);
-  });
-  const total = Object.values(byCategory).reduce((s,v)=>s+v,0);
-  const labels = Object.keys(byCategory).map(k => CATEGORY_LABELS[k] || k);
-  const values = Object.values(byCategory);
-
-  destroyChart('chartCategorySplit');
-  charts['chartCategorySplit'] = new Chart(document.getElementById('chartCategorySplit'), {
-    type:'doughnut',
-    data:{
-      labels,
-      datasets:[{
-        data: values,
-        backgroundColor:['#7C93F0','#F0A94E','#33D6BC'],
-        borderColor:'#161A1F', borderWidth:2
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } },
-        tooltip:{
-          callbacks:{
-            label: ctx => {
-              const pct = total ? (ctx.parsed/total*100).toFixed(1) : '0.0';
-              return `${ctx.label}: ${ctx.parsed.toLocaleString('en-US')} (${pct}%)`;
-            }
-          }
-        }
-      }
-    }
-  });
 }
 
 function renderTrendChart(){
@@ -220,6 +179,104 @@ function renderTrendChart(){
       }
     }
   });
+}
+
+// ---------- Week-over-week change lists ----------
+function fmtDelta(v, digits){
+  if(!isFinite(v)) v = 0;
+  const s = (v > 0 ? '+' : '') + v.toFixed(digits);
+  const color = v > 0 ? '#33D6BC' : (v < 0 ? '#E8615C' : 'var(--muted)');
+  return `<span style="color:${color}">${s}</span>`;
+}
+
+function changeMagnitude(dScore, dOct, dOrders){
+  // weighted so score change (the main KPI) dominates the ranking,
+  // while still letting big OCT/order swings surface
+  return Math.abs(dScore) * 2 + Math.abs(dOct) / 10 + Math.abs(dOrders) / 100;
+}
+
+function setupChangeFilters(){
+  const operators = filteredOperators();
+  const leads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
+  ['opChangeLeadFilter','leadChangeLeadFilter'].forEach(id=>{
+    const sel = document.getElementById(id);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">همه سرگروه‌ها</option>' +
+      leads.map(l=>`<option value="${l}">${l}</option>`).join('');
+    if(leads.includes(prev)) sel.value = prev;
+  });
+}
+
+function renderOperatorChangeList(){
+  const leadFilter = document.getElementById('opChangeLeadFilter').value;
+  let operators = filteredOperators();
+  if(leadFilter) operators = operators.filter(o=>o.lead===leadFilter);
+
+  const withDelta = operators.map(o=>{
+    const dOrders = (o.orders2||0) - (o.orders1||0);
+    const dOct = (o.oct2||0) - (o.oct1||0);
+    const dScore = (o.avg2||0) - (o.avg1||0);
+    return { ...o, dOrders, dOct, dScore, magnitude: changeMagnitude(dScore, dOct, dOrders) };
+  });
+  withDelta.sort((a,b)=> b.magnitude - a.magnitude);
+  const rows = withDelta.slice(0, CHANGE_LIST_LIMIT);
+
+  document.getElementById('opChangeCount').textContent =
+    rows.length.toLocaleString('en-US') + ' از ' + withDelta.length.toLocaleString('en-US') + ' اپراتور';
+
+  document.getElementById('opChangeBody').innerHTML = rows.map(o => `
+    <tr>
+      <td>${o.name}</td>
+      <td>${o.lead || ''}</td>
+      <td class="num">${(o.orders1||0).toLocaleString('en-US')} ← ${(o.orders2||0).toLocaleString('en-US')}</td>
+      <td class="num">${fmtDelta(o.dOrders, 0)}</td>
+      <td class="num">${(o.oct1||0).toLocaleString('en-US')} ← ${(o.oct2||0).toLocaleString('en-US')}</td>
+      <td class="num">${fmtDelta(o.dOct, 1)}</td>
+      <td class="num">${(o.avg1||0).toFixed(1)} ← ${(o.avg2||0).toFixed(1)}</td>
+      <td class="num">${fmtDelta(o.dScore, 2)}</td>
+    </tr>`).join('');
+}
+
+function renderLeadChangeList(){
+  const leadFilterVal = document.getElementById('leadChangeLeadFilter').value;
+  const operators = filteredOperators();
+  const allLeads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
+  const targetLeads = leadFilterVal ? allLeads.filter(l=>l===leadFilterVal) : allLeads;
+
+  const rows = targetLeads.map(lead => {
+    const subset = operators.filter(o=>o.lead===lead);
+    const count = subset.length;
+    const avgOf = key => count ? subset.reduce((s,o)=>s+(o[key]||0),0) / count : 0;
+    const orders1 = subset.reduce((s,o)=>s+(o.orders1||0),0);
+    const orders2 = subset.reduce((s,o)=>s+(o.orders2||0),0);
+    const oct1 = avgOf('oct1'), oct2 = avgOf('oct2');
+    const avg1 = avgOf('avg1'), avg2 = avgOf('avg2');
+    const dOrders = orders2 - orders1, dOct = oct2 - oct1, dScore = avg2 - avg1;
+    return { lead, count, orders1, orders2, oct1, oct2, avg1, avg2, dOrders, dOct, dScore,
+      magnitude: changeMagnitude(dScore, dOct, dOrders) };
+  });
+  rows.sort((a,b)=> b.magnitude - a.magnitude);
+  const limited = rows.slice(0, CHANGE_LIST_LIMIT);
+
+  document.getElementById('leadChangeCount').textContent =
+    limited.length.toLocaleString('en-US') + ' از ' + rows.length.toLocaleString('en-US') + ' سرگروه';
+
+  document.getElementById('leadChangeBody').innerHTML = limited.map(r => `
+    <tr>
+      <td>${r.lead}</td>
+      <td class="num">${r.count.toLocaleString('en-US')}</td>
+      <td class="num">${r.orders1.toLocaleString('en-US')} ← ${r.orders2.toLocaleString('en-US')}</td>
+      <td class="num">${fmtDelta(r.dOrders, 0)}</td>
+      <td class="num">${r.oct1.toFixed(1)} ← ${r.oct2.toFixed(1)}</td>
+      <td class="num">${fmtDelta(r.dOct, 1)}</td>
+      <td class="num">${r.avg1.toFixed(2)} ← ${r.avg2.toFixed(2)}</td>
+      <td class="num">${fmtDelta(r.dScore, 2)}</td>
+    </tr>`).join('');
+}
+
+function wireChangeListEvents(){
+  document.getElementById('opChangeLeadFilter').addEventListener('change', renderOperatorChangeList);
+  document.getElementById('leadChangeLeadFilter').addEventListener('change', renderLeadChangeList);
 }
 
 // ---------- Operators table ----------
@@ -310,6 +367,9 @@ function renderAll(){
   renderCharts();
   setupTableControls();
   renderTable();
+  setupChangeFilters();
+  renderOperatorChangeList();
+  renderLeadChangeList();
 }
 
 function wireCategorySwitch(){
@@ -328,5 +388,6 @@ function wireCategorySwitch(){
   renderMeta(DATA);
   wireCategorySwitch();
   wireTableEvents();
+  wireChangeListEvents();
   renderAll();
 })();
