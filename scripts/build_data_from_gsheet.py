@@ -45,11 +45,12 @@ CATEGORY_TABS = [
 # Duplicated labels (week 1 vs week 2 columns) are matched in left-to-right
 # order automatically.
 HEADERS = {
-    'name': 'Operator',
+    'id': 'Operators id',
+    'name': 'Operators name',
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
-    'bug_price': 'Operators',
+    'bug_price': 'Operators Bug',
     'orders': 'orders',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
@@ -97,28 +98,36 @@ def parse_tab(rows, category):
             return None
         return row[pos]
 
+    # However many week-blocks actually exist in the sheet right now (2, 3, ...).
+    # This adapts automatically if a week is added or removed later.
+    num_weeks = max(len(idx['orders']), len(idx['oct']), len(idx['avg_score']))
+
     operators = []
     for r in data_rows:
         name = cell(r, idx['name'], 0)
         if not name:
             continue
-        orders1 = num(cell(r, idx['orders'], 0))
-        orders2 = num(cell(r, idx['orders'], 1))
-        oct1 = num(cell(r, idx['oct'], 0))
-        oct2 = num(cell(r, idx['oct'], 1))
-        avg1 = num(cell(r, idx['avg_score'], 0))
-        avg2 = num(cell(r, idx['avg_score'], 1))
+        op_id = cell(r, idx['id'], 0)
+        weeks = []
+        for w in range(num_weeks):
+            weeks.append({
+                'orders': num(cell(r, idx['orders'], w)),
+                'oct': num(cell(r, idx['oct'], w)),
+                'avg': num(cell(r, idx['avg_score'], w)),
+            })
+        total_orders = sum(wk['orders'] for wk in weeks)
+        avg_score = round(sum(wk['avg'] for wk in weeks) / len(weeks), 2) if weeks else 0
         salary = num(cell(r, idx['salary'], 0))
         bug_price = num(cell(r, idx['bug_price'], 0))
         operators.append({
+            'id': op_id,
             'name': name,
             'company': cell(r, idx['company'], 0),
             'shift': cell(r, idx['shift'], 0),
             'lead': cell(r, idx['lead'], 0),
-            'orders1': orders1, 'oct1': oct1, 'avg1': avg1,
-            'orders2': orders2, 'oct2': oct2, 'avg2': avg2,
-            'total_orders': orders1 + orders2,
-            'avg_score': round((avg1 + avg2) / 2, 2),
+            'weeks': weeks,
+            'total_orders': total_orders,
+            'avg_score': avg_score,
             'salary': salary,
             'bug_price': bug_price,
             'category': category,
@@ -133,11 +142,15 @@ def agg(operators, key_field, keys):
         count = len(subset)
         total_orders = sum(o['total_orders'] for o in subset)
         avg_score = sum(o['avg_score'] for o in subset) / count if count else 0
+        total_salary = sum(o['salary'] for o in subset)
         if key_field == 'lead':
-            avg_oct = sum((o['oct1'] + o['oct2']) / 2 for o in subset) / count if count else 0
-            summary.append([key, count, total_orders, avg_oct, avg_score])
+            def op_avg_oct(o):
+                wks = o.get('weeks') or []
+                return sum(w['oct'] for w in wks) / len(wks) if wks else 0
+            avg_oct = sum(op_avg_oct(o) for o in subset) / count if count else 0
+            summary.append([key, count, total_orders, avg_oct, avg_score, total_salary])
         else:
-            summary.append([key, count, total_orders, avg_score])
+            summary.append([key, count, total_orders, avg_score, total_salary])
     return summary
 
 
