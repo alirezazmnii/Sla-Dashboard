@@ -32,6 +32,11 @@ function filteredOperators(){
 }
 
 // ---------- Client-side aggregation (category-aware) ----------
+function opAvgOct(o){
+  const wks = o.weeks || [];
+  return wks.length ? wks.reduce((s,w)=>s+(w.oct||0),0) / wks.length : 0;
+}
+
 function aggregateByLead(operators){
   const leads = [...new Set(operators.map(o=>o.lead).filter(Boolean))].sort();
   return leads.map(lead => {
@@ -39,8 +44,9 @@ function aggregateByLead(operators){
     const count = subset.length;
     const totalOrders = subset.reduce((s,o)=>s+(o.total_orders||0),0);
     const avgScore = count ? subset.reduce((s,o)=>s+(o.avg_score||0),0)/count : 0;
-    const avgOct = count ? subset.reduce((s,o)=>s+(((o.oct1||0)+(o.oct2||0))/2),0)/count : 0;
-    return { lead, count, totalOrders, avgOct, avgScore };
+    const avgOct = count ? subset.reduce((s,o)=>s+opAvgOct(o),0)/count : 0;
+    const totalSalary = subset.reduce((s,o)=>s+(o.salary||0),0);
+    return { lead, count, totalOrders, avgOct, avgScore, totalSalary };
   });
 }
 
@@ -51,7 +57,8 @@ function aggregateByCompany(operators){
     const count = subset.length;
     const totalOrders = subset.reduce((s,o)=>s+(o.total_orders||0),0);
     const avgScore = count ? subset.reduce((s,o)=>s+(o.avg_score||0),0)/count : 0;
-    return { company, count, totalOrders, avgScore };
+    const totalSalary = subset.reduce((s,o)=>s+(o.salary||0),0);
+    return { company, count, totalOrders, avgScore, totalSalary };
   });
 }
 
@@ -66,7 +73,7 @@ function renderKPIs(){
 
   const kpis = [
     {label:'تعداد کل اپراتورها', value: totalOperators.toLocaleString('en-US'), accent:'var(--teal)'},
-    {label:'مجموع سفارشات (۲ هفته)', value: totalOrders.toLocaleString('en-US'), accent:'var(--indigo)'},
+    {label:'مجموع سفارشات', value: totalOrders.toLocaleString('en-US'), accent:'var(--indigo)'},
     {label:'میانگین امتیاز کلی', value: avgScore.toFixed(2) + ' <small>از ۵</small>', accent:'var(--amber)'},
     {label:'مجموع حقوق (Total Salary)', value: totalSalary.toLocaleString('en-US'), accent:'var(--violet)'},
     {label:'باگ‌های ثبت‌شده', value: totalBugs.toLocaleString('en-US'), accent: totalBugs>0 ? 'var(--coral)':'var(--teal)'},
@@ -114,6 +121,7 @@ function renderCharts(){
   barChart('chartScore', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgScore.toFixed(2)), '#33D6BC');
   barChart('chartOrders', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalOrders), '#7C93F0');
   barChart('chartOct', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgOct.toFixed(1)), '#F0A94E');
+  barChart('chartSalary', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalSalary), '#B48CE0');
 
   destroyChart('chartCompany');
   charts['chartCompany'] = new Chart(document.getElementById('chartCompany'), {
@@ -142,24 +150,29 @@ function renderTrendChart(){
   if(oldNote) oldNote.remove();
 
   const leads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
+  const numWeeks = operators.reduce((max,o)=>Math.max(max, (o.weeks||[]).length), 0);
 
-  if(!leads.length){
+  if(!leads.length || !numWeeks){
     destroyChart('chartTrend');
     wrap.insertAdjacentHTML('beforeend',
       '<div class="trend-note" style="color:var(--muted);font-size:13px;padding:12px 0;">داده‌ای برای نمایش وجود نداره.</div>');
     return;
   }
 
+  const labels = Array.from({length: numWeeks}, (_, i) => 'هفته ' + (i + 1));
   const palette = ['#33D6BC','#7C93F0','#F0A94E','#E8615C','#B48CE0','#4FC3E8','#E0A5D8','#8FD16B','#E0C05C','#C79BE0'];
 
   const datasets = leads.map((lead, i) => {
     const subset = operators.filter(o => o.lead === lead);
     const count = subset.length;
-    const avg1 = count ? subset.reduce((s,o)=>s+(o.avg1||0),0) / count : 0;
-    const avg2 = count ? subset.reduce((s,o)=>s+(o.avg2||0),0) / count : 0;
+    const data = [];
+    for(let w = 0; w < numWeeks; w++){
+      const avg = count ? subset.reduce((s,o)=>s+(((o.weeks||[])[w] && o.weeks[w].avg) || 0),0) / count : 0;
+      data.push(+avg.toFixed(2));
+    }
     return {
       label: lead,
-      data: [+avg1.toFixed(2), +avg2.toFixed(2)],
+      data,
       borderColor: palette[i % palette.length],
       backgroundColor: palette[i % palette.length],
       spanGaps: true,
@@ -172,7 +185,7 @@ function renderTrendChart(){
   destroyChart('chartTrend');
   charts['chartTrend'] = new Chart(document.getElementById('chartTrend'), {
     type:'line',
-    data:{ labels: ['هفته ۱', 'هفته ۲'], datasets },
+    data:{ labels, datasets },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } } },
@@ -219,10 +232,17 @@ function renderOperatorChangeList(){
   if(leadFilter) operators = operators.filter(o=>o.lead===leadFilter);
 
   const withDelta = operators.map(o=>{
-    const dOrders = (o.orders2||0) - (o.orders1||0);
-    const dOct = (o.oct2||0) - (o.oct1||0);
-    const dScore = (o.avg2||0) - (o.avg1||0);
-    return { ...o, dOrders, dOct, dScore, magnitude: changeMagnitude(dScore, dOct, dOrders) };
+    const wks = o.weeks || [];
+    const prev = wks.length >= 2 ? wks[wks.length - 2] : null;
+    const curr = wks.length >= 1 ? wks[wks.length - 1] : null;
+    const ordersPrev = prev ? prev.orders : 0, ordersCurr = curr ? curr.orders : 0;
+    const octPrev = prev ? prev.oct : 0, octCurr = curr ? curr.oct : 0;
+    const avgPrev = prev ? prev.avg : 0, avgCurr = curr ? curr.avg : 0;
+    const dOrders = ordersCurr - ordersPrev;
+    const dOct = octCurr - octPrev;
+    const dScore = avgCurr - avgPrev;
+    return { ...o, ordersPrev, ordersCurr, octPrev, octCurr, avgPrev, avgCurr,
+      dOrders, dOct, dScore, magnitude: changeMagnitude(dScore, dOct, dOrders) };
   });
   withDelta.sort((a,b)=> b.magnitude - a.magnitude);
   const rows = withDelta.slice(0, CHANGE_LIST_LIMIT);
@@ -234,11 +254,11 @@ function renderOperatorChangeList(){
     <tr>
       <td>${o.name}</td>
       <td>${o.lead || ''}</td>
-      <td class="num">${(o.orders1||0).toLocaleString('en-US')} ← ${(o.orders2||0).toLocaleString('en-US')}</td>
+      <td class="num">${(o.ordersPrev||0).toLocaleString('en-US')} ← ${(o.ordersCurr||0).toLocaleString('en-US')}</td>
       <td class="num">${fmtDelta(o.dOrders, 0)}</td>
-      <td class="num">${(o.oct1||0).toLocaleString('en-US')} ← ${(o.oct2||0).toLocaleString('en-US')}</td>
+      <td class="num">${(o.octPrev||0).toLocaleString('en-US')} ← ${(o.octCurr||0).toLocaleString('en-US')}</td>
       <td class="num">${fmtDelta(o.dOct, 1, true)}</td>
-      <td class="num">${(o.avg1||0).toFixed(1)} ← ${(o.avg2||0).toFixed(1)}</td>
+      <td class="num">${(o.avgPrev||0).toFixed(1)} ← ${(o.avgCurr||0).toFixed(1)}</td>
       <td class="num">${fmtDelta(o.dScore, 2)}</td>
     </tr>`).join('');
 }
@@ -252,13 +272,27 @@ function renderLeadChangeList(){
   const rows = targetLeads.map(lead => {
     const subset = operators.filter(o=>o.lead===lead);
     const count = subset.length;
-    const avgOf = key => count ? subset.reduce((s,o)=>s+(o[key]||0),0) / count : 0;
-    const orders1 = subset.reduce((s,o)=>s+(o.orders1||0),0);
-    const orders2 = subset.reduce((s,o)=>s+(o.orders2||0),0);
-    const oct1 = avgOf('oct1'), oct2 = avgOf('oct2');
-    const avg1 = avgOf('avg1'), avg2 = avgOf('avg2');
-    const dOrders = orders2 - orders1, dOct = oct2 - oct1, dScore = avg2 - avg1;
-    return { lead, count, orders1, orders2, oct1, oct2, avg1, avg2, dOrders, dOct, dScore,
+    const weekAvg = (weekIndexFromEnd, field) => {
+      if(!count) return 0;
+      const vals = subset.map(o=>{
+        const wks = o.weeks || [];
+        const w = wks[wks.length - weekIndexFromEnd];
+        return w ? (w[field]||0) : 0;
+      });
+      return vals.reduce((a,b)=>a+b,0) / count;
+    };
+    const ordersPrev = subset.reduce((s,o)=>{
+      const wks = o.weeks || []; const w = wks[wks.length-2];
+      return s + (w ? (w.orders||0) : 0);
+    }, 0);
+    const ordersCurr = subset.reduce((s,o)=>{
+      const wks = o.weeks || []; const w = wks[wks.length-1];
+      return s + (w ? (w.orders||0) : 0);
+    }, 0);
+    const octPrev = weekAvg(2, 'oct'), octCurr = weekAvg(1, 'oct');
+    const avgPrev = weekAvg(2, 'avg'), avgCurr = weekAvg(1, 'avg');
+    const dOrders = ordersCurr - ordersPrev, dOct = octCurr - octPrev, dScore = avgCurr - avgPrev;
+    return { lead, count, ordersPrev, ordersCurr, octPrev, octCurr, avgPrev, avgCurr, dOrders, dOct, dScore,
       magnitude: changeMagnitude(dScore, dOct, dOrders) };
   });
   rows.sort((a,b)=> b.magnitude - a.magnitude);
@@ -271,11 +305,11 @@ function renderLeadChangeList(){
     <tr>
       <td>${r.lead}</td>
       <td class="num">${r.count.toLocaleString('en-US')}</td>
-      <td class="num">${r.orders1.toLocaleString('en-US')} ← ${r.orders2.toLocaleString('en-US')}</td>
+      <td class="num">${(r.ordersPrev||0).toLocaleString('en-US')} ← ${(r.ordersCurr||0).toLocaleString('en-US')}</td>
       <td class="num">${fmtDelta(r.dOrders, 0)}</td>
-      <td class="num">${r.oct1.toFixed(1)} ← ${r.oct2.toFixed(1)}</td>
+      <td class="num">${(r.octPrev||0).toFixed(1)} ← ${(r.octCurr||0).toFixed(1)}</td>
       <td class="num">${fmtDelta(r.dOct, 1, true)}</td>
-      <td class="num">${r.avg1.toFixed(2)} ← ${r.avg2.toFixed(2)}</td>
+      <td class="num">${(r.avgPrev||0).toFixed(2)} ← ${(r.avgCurr||0).toFixed(2)}</td>
       <td class="num">${fmtDelta(r.dScore, 2)}</td>
     </tr>`).join('');
 }
