@@ -24,11 +24,12 @@ CATEGORY_TABS = ['freelancer', 'Center Issue']
 # the real headers append the week text with inconsistent spacing
 # (e.g. "orders 1stweek-6" vs "orders 2nd week-6").
 HEADERS = {
-    'name': 'Operator',
+    'id': 'Operators id',
+    'name': 'Operators name',
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
-    'bug_price': 'Operators',
+    'bug_price': 'Operators Bug',
     'orders': 'orders',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
