@@ -59,8 +59,11 @@ HEADERS = {
 
 
 def num(v):
+    if v in (None, '', '-'):
+        return 0
     try:
-        return float(v) if v not in (None, '', '-') else 0
+        # sheet numbers can come with thousands-separator commas (e.g. salary: "485,840,000")
+        return float(str(v).replace(',', '').strip())
     except ValueError:
         return 0
 
