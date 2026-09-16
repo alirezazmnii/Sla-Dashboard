@@ -111,6 +111,13 @@ header .meta{
 
 .category-bar{
   padding:14px clamp(16px,4vw,48px) 0; max-width:1400px; margin:0 auto;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+}
+.period-select-wrap{display:flex; align-items:center; gap:8px;}
+.period-select-wrap label{color:var(--muted); font-size:12.5px; white-space:nowrap;}
+.period-select-wrap select{
+  background:var(--panel); border:1px solid var(--border); color:var(--text);
+  padding:8px 12px; border-radius:8px; font-family:inherit; font-size:13px;
 }
 .category-switch{
   display:inline-flex; gap:4px; background:var(--panel); border:1px solid var(--border);
