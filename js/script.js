@@ -2,10 +2,12 @@ const DATA_URL = 'data/data.json';
 
 let DATA = null;
 let currentCategory = 'all';
+let currentPeriod = 'all';
 let charts = {}; // canvasId -> Chart instance
 
 const CATEGORY_LABELS = { all: 'همه', freelancer: 'Freelancer', center_issue: 'Center Issue' };
 const CHANGE_LIST_LIMIT = 20;
+const WEEKS_PER_MONTH = 4;
 
 async function loadData(){
   try{
@@ -31,6 +33,66 @@ function filteredOperators(){
   return DATA.operators.filter(o => o.category === currentCategory);
 }
 
+// ---------- Report period (weekly / monthly / all) ----------
+function totalWeeksAvailable(){
+  return (DATA.operators || []).reduce((max,o)=>Math.max(max, (o.weeks||[]).length), 0);
+}
+
+function setupPeriodSelector(){
+  const numWeeks = totalWeeksAvailable();
+  const sel = document.getElementById('periodSelect');
+  const prev = sel.value || currentPeriod;
+  let html = '<option value="all">کل بازه</option>';
+  for(let w = 0; w < numWeeks; w++){
+    html += `<option value="week:${w}">هفته ${w+1}</option>`;
+  }
+  const numMonths = Math.ceil(numWeeks / WEEKS_PER_MONTH);
+  for(let m = 0; m < numMonths; m++){
+    const start = m * WEEKS_PER_MONTH;
+    const end = Math.min(start + WEEKS_PER_MONTH, numWeeks);
+    html += `<option value="month:${m}">ماه ${m+1} (هفته ${start+1} تا ${end})</option>`;
+  }
+  sel.innerHTML = html;
+  sel.value = prev;
+  if(sel.value !== prev) sel.value = 'all'; // previous selection no longer valid (e.g. fewer weeks)
+  currentPeriod = sel.value;
+}
+
+function periodWeekIndices(period, numWeeks){
+  if(period === 'all' || !period) return Array.from({length: numWeeks}, (_,i)=>i);
+  if(period.startsWith('week:')){
+    return [parseInt(period.split(':')[1], 10)];
+  }
+  if(period.startsWith('month:')){
+    const m = parseInt(period.split(':')[1], 10);
+    const start = m * WEEKS_PER_MONTH;
+    const end = Math.min(start + WEEKS_PER_MONTH, numWeeks);
+    return Array.from({length: Math.max(0, end - start)}, (_,i)=>start+i);
+  }
+  return Array.from({length: numWeeks}, (_,i)=>i);
+}
+
+function operatorMetricsForWeeks(o, indices){
+  const wks = o.weeks || [];
+  const selected = indices.map(i=>wks[i]).filter(Boolean);
+  const orders = selected.reduce((s,w)=>s+(w.orders||0),0);
+  const avgScore = selected.length ? selected.reduce((s,w)=>s+(w.avg||0),0) / selected.length : 0;
+  const oct = selected.length ? selected.reduce((s,w)=>s+(w.oct||0),0) / selected.length : 0;
+  return { orders, avgScore, oct };
+}
+
+// Operators for the currently selected category AND report period, with
+// total_orders/avg_score recomputed for just that period (everything else
+// — salary, bug info, lead, company — is unaffected by the period).
+function periodOperators(){
+  const numWeeks = totalWeeksAvailable();
+  const indices = periodWeekIndices(currentPeriod, numWeeks);
+  return filteredOperators().map(o => {
+    const m = operatorMetricsForWeeks(o, indices);
+    return { ...o, total_orders: m.orders, avg_score: +m.avgScore.toFixed(2), _oct: m.oct };
+  });
+}
+
 // ---------- Client-side aggregation (category-aware) ----------
 function opAvgOct(o){
   const wks = o.weeks || [];
@@ -44,7 +106,7 @@ function aggregateByLead(operators){
     const count = subset.length;
     const totalOrders = subset.reduce((s,o)=>s+(o.total_orders||0),0);
     const avgScore = count ? subset.reduce((s,o)=>s+(o.avg_score||0),0)/count : 0;
-    const avgOct = count ? subset.reduce((s,o)=>s+opAvgOct(o),0)/count : 0;
+    const avgOct = count ? subset.reduce((s,o)=>s+(o._oct != null ? o._oct : opAvgOct(o)),0)/count : 0;
     const totalSalary = subset.reduce((s,o)=>s+(o.salary||0),0);
     return { lead, count, totalOrders, avgOct, avgScore, totalSalary };
   });
@@ -64,7 +126,7 @@ function aggregateByCompany(operators){
 
 // ---------- KPIs ----------
 function renderKPIs(){
-  const operators = filteredOperators();
+  const operators = periodOperators();
   const totalOperators = operators.length;
   const totalOrders = operators.reduce((s,o)=>s+(o.total_orders||0),0);
   const avgScore = totalOperators ? (operators.reduce((s,o)=>s+(o.avg_score||0),0)/totalOperators) : 0;
@@ -114,7 +176,7 @@ function renderCharts(){
   Chart.defaults.color = '#8B93A1';
   Chart.defaults.borderColor = '#262B33';
 
-  const operators = filteredOperators();
+  const operators = periodOperators();
   const teamLeads = aggregateByLead(operators);
   const companies = aggregateByCompany(operators);
 
@@ -359,7 +421,7 @@ function renderTable(){
   const min = scoreMin.value !== '' ? parseFloat(scoreMin.value) : -Infinity;
   const max = scoreMax.value !== '' ? parseFloat(scoreMax.value) : Infinity;
 
-  let rows = filteredOperators().filter(o =>
+  let rows = periodOperators().filter(o =>
     (!q || o.name.includes(q)) &&
     (!lead || o.lead === lead) &&
     (!shift || o.shift === shift) &&
@@ -423,11 +485,20 @@ function wireCategorySwitch(){
   });
 }
 
+function wirePeriodSelector(){
+  document.getElementById('periodSelect').addEventListener('change', (e)=>{
+    currentPeriod = e.target.value;
+    renderAll();
+  });
+}
+
 (async function init(){
   DATA = await loadData();
   renderMeta(DATA);
+  setupPeriodSelector();
   wireCategorySwitch();
   wireTableEvents();
   wireChangeListEvents();
+  wirePeriodSelector();
   renderAll();
 })();
