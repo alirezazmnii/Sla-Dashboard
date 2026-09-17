@@ -1,11 +1,9 @@
 const DATA_URL = 'data/data.json';
 
 let DATA = null;
-let currentCategory = 'all';
 let currentPeriod = 'all';
 let charts = {}; // canvasId -> Chart instance
 
-const CATEGORY_LABELS = { all: 'همه', freelancer: 'Freelancer', center_issue: 'Center Issue' };
 const CHANGE_LIST_LIMIT = 20;
 const WEEKS_PER_MONTH = 4;
 
@@ -45,8 +43,7 @@ function renderMeta(data){
 }
 
 function filteredOperators(){
-  if(currentCategory === 'all') return DATA.operators;
-  return DATA.operators.filter(o => o.category === currentCategory);
+  return DATA.operators;
 }
 
 // ---------- Report period (weekly / monthly / all) ----------
@@ -173,7 +170,7 @@ function destroyChart(id){
   if(charts[id]){ charts[id].destroy(); delete charts[id]; }
 }
 
-function barChart(id, labels, values, color, horizontal=false){
+function barChart(id, labels, values, color, horizontal=false, gridColor){
   destroyChart(id);
   const ctx = document.getElementById(id);
   charts[id] = new Chart(ctx, {
@@ -185,25 +182,39 @@ function barChart(id, labels, values, color, horizontal=false){
       plugins:{ legend:{display:false} },
       scales:{
         x:{ grid:{display: horizontal}, ticks:{font:{size:11}} },
-        y:{ grid:{display: !horizontal, color: cssVar('--line')}, ticks:{font:{size:11}}, beginAtZero:true }
+        y:{ grid:{display: !horizontal, color: gridColor || cssVar('--line')}, ticks:{font:{size:11}}, beginAtZero:true }
       }
     }
   });
 }
 
 function renderCharts(){
+  // Read all theme colors once per render instead of once per chart —
+  // getComputedStyle() forces a style recalc, so this cuts a couple dozen
+  // reads down to a handful.
+  const theme = {
+    line: cssVar('--line'),
+    inkSoft: cssVar('--ink-soft'),
+    surface: cssVar('--surface'),
+    good: cssVar('--good'),
+    accent: cssVar('--accent'),
+    warn: cssVar('--warn'),
+    violet: cssVar('--violet'),
+  };
+  const palette = chartPalette();
+
   Chart.defaults.font.family = "'IRANSans', 'Vazirmatn', sans-serif";
-  Chart.defaults.color = cssVar('--ink-soft') || '#8B93A1';
-  Chart.defaults.borderColor = cssVar('--line') || '#262B33';
+  Chart.defaults.color = theme.inkSoft || '#8B93A1';
+  Chart.defaults.borderColor = theme.line || '#262B33';
 
   const operators = periodOperators();
   const teamLeads = aggregateByLead(operators);
   const companies = aggregateByCompany(operators);
 
-  barChart('chartScore', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgScore.toFixed(2)), cssVar('--good'));
-  barChart('chartOrders', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalOrders), cssVar('--accent'));
-  barChart('chartOct', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgOct.toFixed(1)), cssVar('--warn'));
-  barChart('chartSalary', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalSalary), cssVar('--violet'));
+  barChart('chartScore', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgScore.toFixed(2)), theme.good, false, theme.line);
+  barChart('chartOrders', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalOrders), theme.accent, false, theme.line);
+  barChart('chartOct', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgOct.toFixed(1)), theme.warn, false, theme.line);
+  barChart('chartSalary', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalSalary), theme.violet, false, theme.line);
 
   destroyChart('chartCompany');
   charts['chartCompany'] = new Chart(document.getElementById('chartCompany'), {
@@ -212,13 +223,13 @@ function renderCharts(){
       labels: companies.map(c=>c.company),
       datasets:[{
         data: companies.map(c=>c.count),
-        backgroundColor: chartPalette(),
-        borderColor: cssVar('--surface') || 'transparent', borderWidth:2
+        backgroundColor: palette,
+        borderColor: theme.surface || 'transparent', borderWidth:2
       }]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } }
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: theme.inkSoft } } }
     }
   });
 
@@ -237,21 +248,23 @@ function renderCharts(){
         labels: bugLeads.map(t=>t.lead),
         datasets:[{
           data: bugLeads.map(t=>t.totalBugPrice),
-          backgroundColor: chartPalette(),
-          borderColor: cssVar('--surface') || 'transparent', borderWidth:2
+          backgroundColor: palette,
+          borderColor: theme.surface || 'transparent', borderWidth:2
         }]
       },
       options:{
         responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } }
+        plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: theme.inkSoft } } }
       }
     });
   }
 
-  renderTrendChart();
+  renderTrendChart(theme, palette);
 }
 
-function renderTrendChart(){
+function renderTrendChart(theme, palette){
+  theme = theme || { line: cssVar('--line'), inkSoft: cssVar('--ink-soft') };
+  palette = palette || chartPalette();
   const operators = filteredOperators();
   const wrap = document.getElementById('chartTrend').parentElement;
   const oldNote = wrap.querySelector('.trend-note');
@@ -268,7 +281,6 @@ function renderTrendChart(){
   }
 
   const labels = Array.from({length: numWeeks}, (_, i) => 'هفته ' + (i + 1));
-  const palette = chartPalette();
 
   const datasets = leads.map((lead, i) => {
     const subset = operators.filter(o => o.lead === lead);
@@ -296,10 +308,10 @@ function renderTrendChart(){
     data:{ labels, datasets },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } },
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color: theme.inkSoft } } },
       scales:{
-        x:{ grid:{color: cssVar('--line')}, ticks:{font:{size:11}} },
-        y:{ grid:{color: cssVar('--line')}, ticks:{font:{size:11}}, suggestedMin:0, suggestedMax:5 }
+        x:{ grid:{color: theme.line}, ticks:{font:{size:11}} },
+        y:{ grid:{color: theme.line}, ticks:{font:{size:11}}, suggestedMin:0, suggestedMax:5 }
       }
     }
   });
@@ -533,17 +545,6 @@ function renderAll(){
   renderLeadChangeList();
 }
 
-function wireCategorySwitch(){
-  document.querySelectorAll('#categorySwitch button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.querySelectorAll('#categorySwitch button').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      currentCategory = btn.dataset.category;
-      renderAll();
-    });
-  });
-}
-
 function wirePeriodSelector(){
   document.getElementById('periodSelect').addEventListener('change', (e)=>{
     currentPeriod = e.target.value;
@@ -568,7 +569,6 @@ function wireThemeToggle(){
   DATA = await loadData();
   renderMeta(DATA);
   setupPeriodSelector();
-  wireCategorySwitch();
   wireTableEvents();
   wireChangeListEvents();
   wirePeriodSelector();
