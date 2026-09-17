@@ -4,7 +4,6 @@ let DATA = null;
 let currentPeriod = 'all';
 let charts = {}; // canvasId -> Chart instance
 
-const CHANGE_LIST_LIMIT = 20;
 const WEEKS_PER_MONTH = 4;
 
 function cssVar(name){
@@ -317,128 +316,6 @@ function renderTrendChart(theme, palette){
   });
 }
 
-// ---------- Week-over-week change lists ----------
-// invert=true means "lower is better" (used for OCT — less time per order is a win)
-function fmtDelta(v, digits, invert){
-  if(!isFinite(v)) v = 0;
-  const s = (v > 0 ? '+' : '') + v.toFixed(digits);
-  const isGood = invert ? v < 0 : v > 0;
-  const isBad = invert ? v > 0 : v < 0;
-  const color = isGood ? cssVar('--good') : (isBad ? cssVar('--danger') : 'var(--ink-faint)');
-  return `<span style="color:${color}">${s}</span>`;
-}
-
-function changeMagnitude(dScore, dOct, dOrders){
-  // weighted so score change (the main KPI) dominates the ranking,
-  // while still letting big OCT/order swings surface
-  return Math.abs(dScore) * 2 + Math.abs(dOct) / 10 + Math.abs(dOrders) / 100;
-}
-
-function setupChangeFilters(){
-  const operators = filteredOperators();
-  const leads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
-  ['opChangeLeadFilter','leadChangeLeadFilter'].forEach(id=>{
-    const sel = document.getElementById(id);
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">همه سرگروه‌ها</option>' +
-      leads.map(l=>`<option value="${l}">${l}</option>`).join('');
-    if(leads.includes(prev)) sel.value = prev;
-  });
-}
-
-function renderOperatorChangeList(){
-  const leadFilter = document.getElementById('opChangeLeadFilter').value;
-  let operators = filteredOperators();
-  if(leadFilter) operators = operators.filter(o=>o.lead===leadFilter);
-
-  const withDelta = operators.map(o=>{
-    const wks = o.weeks || [];
-    const prev = wks.length >= 2 ? wks[wks.length - 2] : null;
-    const curr = wks.length >= 1 ? wks[wks.length - 1] : null;
-    const ordersPrev = prev ? prev.orders : 0, ordersCurr = curr ? curr.orders : 0;
-    const octPrev = prev ? prev.oct : 0, octCurr = curr ? curr.oct : 0;
-    const avgPrev = prev ? prev.avg : 0, avgCurr = curr ? curr.avg : 0;
-    const dOrders = ordersCurr - ordersPrev;
-    const dOct = octCurr - octPrev;
-    const dScore = avgCurr - avgPrev;
-    return { ...o, ordersPrev, ordersCurr, octPrev, octCurr, avgPrev, avgCurr,
-      dOrders, dOct, dScore, magnitude: changeMagnitude(dScore, dOct, dOrders) };
-  });
-  withDelta.sort((a,b)=> b.magnitude - a.magnitude);
-  const rows = withDelta.slice(0, CHANGE_LIST_LIMIT);
-
-  document.getElementById('opChangeCount').textContent =
-    rows.length.toLocaleString('en-US') + ' از ' + withDelta.length.toLocaleString('en-US') + ' اپراتور';
-
-  document.getElementById('opChangeBody').innerHTML = rows.map(o => `
-    <tr>
-      <td>${o.name}</td>
-      <td>${o.lead || ''}</td>
-      <td class="num">${(o.ordersPrev||0).toLocaleString('en-US')} ← ${(o.ordersCurr||0).toLocaleString('en-US')}</td>
-      <td class="num">${fmtDelta(o.dOrders, 0)}</td>
-      <td class="num">${(o.octPrev||0).toLocaleString('en-US')} ← ${(o.octCurr||0).toLocaleString('en-US')}</td>
-      <td class="num">${fmtDelta(o.dOct, 1, true)}</td>
-      <td class="num">${(o.avgPrev||0).toFixed(1)} ← ${(o.avgCurr||0).toFixed(1)}</td>
-      <td class="num">${fmtDelta(o.dScore, 2)}</td>
-    </tr>`).join('');
-}
-
-function renderLeadChangeList(){
-  const leadFilterVal = document.getElementById('leadChangeLeadFilter').value;
-  const operators = filteredOperators();
-  const allLeads = [...new Set(operators.map(o=>o.lead))].filter(Boolean).sort();
-  const targetLeads = leadFilterVal ? allLeads.filter(l=>l===leadFilterVal) : allLeads;
-
-  const rows = targetLeads.map(lead => {
-    const subset = operators.filter(o=>o.lead===lead);
-    const count = subset.length;
-    const weekAvg = (weekIndexFromEnd, field) => {
-      if(!count) return 0;
-      const vals = subset.map(o=>{
-        const wks = o.weeks || [];
-        const w = wks[wks.length - weekIndexFromEnd];
-        return w ? (w[field]||0) : 0;
-      });
-      return vals.reduce((a,b)=>a+b,0) / count;
-    };
-    const ordersPrev = subset.reduce((s,o)=>{
-      const wks = o.weeks || []; const w = wks[wks.length-2];
-      return s + (w ? (w.orders||0) : 0);
-    }, 0);
-    const ordersCurr = subset.reduce((s,o)=>{
-      const wks = o.weeks || []; const w = wks[wks.length-1];
-      return s + (w ? (w.orders||0) : 0);
-    }, 0);
-    const octPrev = weekAvg(2, 'oct'), octCurr = weekAvg(1, 'oct');
-    const avgPrev = weekAvg(2, 'avg'), avgCurr = weekAvg(1, 'avg');
-    const dOrders = ordersCurr - ordersPrev, dOct = octCurr - octPrev, dScore = avgCurr - avgPrev;
-    return { lead, count, ordersPrev, ordersCurr, octPrev, octCurr, avgPrev, avgCurr, dOrders, dOct, dScore,
-      magnitude: changeMagnitude(dScore, dOct, dOrders) };
-  });
-  rows.sort((a,b)=> b.magnitude - a.magnitude);
-  const limited = rows.slice(0, CHANGE_LIST_LIMIT);
-
-  document.getElementById('leadChangeCount').textContent =
-    limited.length.toLocaleString('en-US') + ' از ' + rows.length.toLocaleString('en-US') + ' سرگروه';
-
-  document.getElementById('leadChangeBody').innerHTML = limited.map(r => `
-    <tr>
-      <td>${r.lead}</td>
-      <td class="num">${r.count.toLocaleString('en-US')}</td>
-      <td class="num">${(r.ordersPrev||0).toLocaleString('en-US')} ← ${(r.ordersCurr||0).toLocaleString('en-US')}</td>
-      <td class="num">${fmtDelta(r.dOrders, 0)}</td>
-      <td class="num">${(r.octPrev||0).toFixed(1)} ← ${(r.octCurr||0).toFixed(1)}</td>
-      <td class="num">${fmtDelta(r.dOct, 1, true)}</td>
-      <td class="num">${(r.avgPrev||0).toFixed(2)} ← ${(r.avgCurr||0).toFixed(2)}</td>
-      <td class="num">${fmtDelta(r.dScore, 2)}</td>
-    </tr>`).join('');
-}
-
-function wireChangeListEvents(){
-  document.getElementById('opChangeLeadFilter').addEventListener('change', renderOperatorChangeList);
-  document.getElementById('leadChangeLeadFilter').addEventListener('change', renderLeadChangeList);
-}
-
 // ---------- Operators table ----------
 function scoreColor(score){
   if(score >= 4) return {bg:'var(--good-soft)', fg:cssVar('--good')};
@@ -534,15 +411,12 @@ function wireTableEvents(){
   });
 }
 
-// ---------- Category switch ----------
+// ---------- Render orchestration ----------
 function renderAll(){
   renderKPIs();
   renderCharts();
   setupTableControls();
   renderTable();
-  setupChangeFilters();
-  renderOperatorChangeList();
-  renderLeadChangeList();
 }
 
 function wirePeriodSelector(){
@@ -570,7 +444,6 @@ function wireThemeToggle(){
   renderMeta(DATA);
   setupPeriodSelector();
   wireTableEvents();
-  wireChangeListEvents();
   wirePeriodSelector();
   wireThemeToggle();
   renderAll();
