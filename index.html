@@ -78,6 +78,11 @@
       <div class="panel-sub">جمع حقوق پرداختی اپراتورهای هر سرگروه</div>
       <div class="chart-wrap"><canvas id="chartSalary"></canvas></div>
     </div>
+    <div class="panel">
+      <h2>مبلغ باگ به تفکیک سرگروه</h2>
+      <div class="panel-sub">سهم هر سرگروه از مجموع مبلغ باگ‌های ثبت‌شده</div>
+      <div class="chart-wrap"><canvas id="chartBugs"></canvas></div>
+    </div>
   </div>
 
   <div class="panel" style="margin-top:4px; margin-bottom:16px;">
@@ -164,7 +169,8 @@
             <th data-key="total_orders">مجموع سفارشات</th>
             <th data-key="avg_score">میانگین امتیاز</th>
             <th data-key="salary">حقوق</th>
-            <th data-key="bug_price">Bug Price</th>
+            <th data-key="bug_count">تعداد باگ</th>
+            <th data-key="bug_price">مبلغ باگ</th>
           </tr>
         </thead>
         <tbody id="opsBody"></tbody>
