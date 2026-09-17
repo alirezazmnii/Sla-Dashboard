@@ -5,8 +5,8 @@ library — no pip install needed, which keeps the GitHub Action fast
 and dependency-free.
 
 Requires the sheet's sharing setting to be "Anyone with the link -
-Viewer" (no sign-in). It reads TWO tabs — one per operator category
-— and merges them, tagging each operator with which tab it came from.
+Viewer" (no sign-in). Reads the "freelancer" tab (Center Issue is not
+in use and intentionally excluded to keep the build fast).
 
 Usage:
     python scripts/build_data_from_gsheet.py [sheet_id] [output_json] [history_json]
@@ -30,10 +30,10 @@ DEFAULT_SHEET_ID = '1E5OU--FCwpW4dBMxRj9MmuBsKzKzGx76FDZ9AvfRJF0'
 # Each tab in the sheet is one operator category. The first item in each
 # tuple is the EXACT tab name as it appears in Google Sheets (case-sensitive);
 # the second is the short key used everywhere in the dashboard's data/code.
-# If a tab gets renamed, just update the name here — nothing else needs to change.
+# Center Issue isn't used right now — only fetching one tab also keeps the
+# GitHub Action noticeably faster.
 CATEGORY_TABS = [
     ('freelancer', 'freelancer'),
-    ('Center Issue', 'center_issue'),
 ]
 
 # Header labels as BASE keywords — matched by "starts with" (case-insensitive),
@@ -44,33 +44,24 @@ CATEGORY_TABS = [
 # inconsistency and also self-adapts if a tab's wording differs slightly.
 # Duplicated labels (week 1 vs week 2 columns) are matched in left-to-right
 # order automatically.
+#
+# bug_count / bug_price use their FULL label text (not just "Operators Bug")
+# on purpose: the sheet has both "Operators Bug (count)" and "Operators Bug
+# Price" columns, and a short shared prefix would match both for either
+# field. The full text keeps them distinct.
 HEADERS = {
     'id': 'Operators id',
     'name': 'Operators name',
     'company': 'Company',
     'shift': 'Work Shift',
     'lead': 'Team Lead',
-    'bug_price': 'Operators Bug',
+    'bug_count': 'Operators Bug (count)',
+    'bug_price': 'Operators Bug Price',
     'orders': 'orders',
     'oct': 'OCT(min)',
     'avg_score': 'average Score',
     'salary': 'salary',
 }
-
-
-import re
-
-def normalize_name(s):
-    """Deep-normalizes Persian/Arabic operator names for fallback matching
-    when no id is available: strips ZWNJ/extra whitespace and unifies
-    Arabic vs Persian character variants (ي/ی, ك/ک) plus ک/گ, which have
-    caused false negatives in past name-matching work on this project."""
-    if not s:
-        return ''
-    s = str(s).replace('\u200c', ' ')
-    s = re.sub(r'\s+', ' ', s).strip()
-    s = s.replace('ي', 'ی').replace('ك', 'ک').replace('گ', 'ک')
-    return s.lower()
 
 
 def num(v):
@@ -136,6 +127,7 @@ def parse_tab(rows, category):
         total_orders = sum(wk['orders'] for wk in weeks)
         avg_score = round(sum(wk['avg'] for wk in weeks) / len(weeks), 2) if weeks else 0
         salary = num(cell(r, idx['salary'], 0))
+        bug_count = num(cell(r, idx['bug_count'], 0))
         bug_price = num(cell(r, idx['bug_price'], 0))
         operators.append({
             'id': op_id,
@@ -147,76 +139,11 @@ def parse_tab(rows, category):
             'total_orders': total_orders,
             'avg_score': avg_score,
             'salary': salary,
+            'bug_count': bug_count,
             'bug_price': bug_price,
             'category': category,
         })
     return operators
-
-
-BUGS_TAB_NAME = 'Operator Bugs'
-BUGS_HEADERS = {
-    'id': 'Operators id',
-    'name': 'Operators name',
-    'bug_count': 'Operators Bug (count)',
-    'bug_price': 'Operators Bug Price',
-}
-
-
-def fetch_bugs(sheet_id):
-    """Reads the 'Operator Bugs' tab and returns two lookup dicts keyed by
-    id and by normalized name, so operators can be matched either way.
-    Returns (by_id, by_name); both empty on any failure — bugs are treated
-    as 0 rather than breaking the whole build."""
-    try:
-        rows = fetch_csv_by_sheet_name(sheet_id, BUGS_TAB_NAME)
-    except Exception as e:
-        print(f'warning: could not read "{BUGS_TAB_NAME}" tab ({e}) — bug counts will be 0')
-        return {}, {}
-    if not rows:
-        return {}, {}
-
-    header_row = rows[0]
-    # The tab's header sometimes repeats itself in row 2 (frozen-row
-    # duplication) — skip as many leading rows as match the header exactly.
-    start = 1
-    while start < len(rows) and rows[start][:len(header_row)] == header_row:
-        start += 1
-    data_rows = rows[start:]
-
-    idx = {}
-    for field, label in BUGS_HEADERS.items():
-        label_norm = label.strip().lower()
-        idx[field] = [i for i, h in enumerate(header_row) if h.strip().lower().startswith(label_norm)]
-
-    def cell(row, field):
-        positions = idx.get(field) or []
-        pos = positions[0] if positions else None
-        if pos is None or pos >= len(row):
-            return None
-        return row[pos]
-
-    by_id, by_name = {}, {}
-    for r in data_rows:
-        name = cell(r, 'name')
-        if not name:
-            continue
-        rec = {'bug_count': num(cell(r, 'bug_count')), 'bug_price': num(cell(r, 'bug_price'))}
-        op_id = cell(r, 'id')
-        if op_id:
-            by_id[op_id] = rec
-        by_name[normalize_name(name)] = rec
-    return by_id, by_name
-
-
-def apply_bugs(operators, bugs_by_id, bugs_by_name):
-    for o in operators:
-        rec = None
-        if o.get('id'):
-            rec = bugs_by_id.get(o['id'])
-        if rec is None:
-            rec = bugs_by_name.get(normalize_name(o.get('name')))
-        o['bug_count'] = rec['bug_count'] if rec else 0
-        o['bug_price'] = rec['bug_price'] if rec else 0
 
 
 def agg(operators, key_field, keys):
@@ -284,9 +211,6 @@ def build(sheet_id, out_path, history_path):
         fetched.append(f'{tab_name} -> {category} ({len(tab_operators)} rows)')
 
     total_salary = sum(o['salary'] for o in operators)
-
-    bugs_by_id, bugs_by_name = fetch_bugs(sheet_id)
-    apply_bugs(operators, bugs_by_id, bugs_by_name)
     total_bug_count = sum(o['bug_count'] for o in operators)
     total_bug_price = sum(o['bug_price'] for o in operators)
 
