@@ -58,6 +58,21 @@ HEADERS = {
 }
 
 
+import re
+
+def normalize_name(s):
+    """Deep-normalizes Persian/Arabic operator names for fallback matching
+    when no id is available: strips ZWNJ/extra whitespace and unifies
+    Arabic vs Persian character variants (ي/ی, ك/ک) plus ک/گ, which have
+    caused false negatives in past name-matching work on this project."""
+    if not s:
+        return ''
+    s = str(s).replace('\u200c', ' ')
+    s = re.sub(r'\s+', ' ', s).strip()
+    s = s.replace('ي', 'ی').replace('ك', 'ک').replace('گ', 'ک')
+    return s.lower()
+
+
 def num(v):
     if v in (None, '', '-'):
         return 0
@@ -138,6 +153,72 @@ def parse_tab(rows, category):
     return operators
 
 
+BUGS_TAB_NAME = 'Operator Bugs'
+BUGS_HEADERS = {
+    'id': 'Operators id',
+    'name': 'Operators name',
+    'bug_count': 'Operators Bug (count)',
+    'bug_price': 'Operators Bug Price',
+}
+
+
+def fetch_bugs(sheet_id):
+    """Reads the 'Operator Bugs' tab and returns two lookup dicts keyed by
+    id and by normalized name, so operators can be matched either way.
+    Returns (by_id, by_name); both empty on any failure — bugs are treated
+    as 0 rather than breaking the whole build."""
+    try:
+        rows = fetch_csv_by_sheet_name(sheet_id, BUGS_TAB_NAME)
+    except Exception as e:
+        print(f'warning: could not read "{BUGS_TAB_NAME}" tab ({e}) — bug counts will be 0')
+        return {}, {}
+    if not rows:
+        return {}, {}
+
+    header_row = rows[0]
+    # The tab's header sometimes repeats itself in row 2 (frozen-row
+    # duplication) — skip as many leading rows as match the header exactly.
+    start = 1
+    while start < len(rows) and rows[start][:len(header_row)] == header_row:
+        start += 1
+    data_rows = rows[start:]
+
+    idx = {}
+    for field, label in BUGS_HEADERS.items():
+        label_norm = label.strip().lower()
+        idx[field] = [i for i, h in enumerate(header_row) if h.strip().lower().startswith(label_norm)]
+
+    def cell(row, field):
+        positions = idx.get(field) or []
+        pos = positions[0] if positions else None
+        if pos is None or pos >= len(row):
+            return None
+        return row[pos]
+
+    by_id, by_name = {}, {}
+    for r in data_rows:
+        name = cell(r, 'name')
+        if not name:
+            continue
+        rec = {'bug_count': num(cell(r, 'bug_count')), 'bug_price': num(cell(r, 'bug_price'))}
+        op_id = cell(r, 'id')
+        if op_id:
+            by_id[op_id] = rec
+        by_name[normalize_name(name)] = rec
+    return by_id, by_name
+
+
+def apply_bugs(operators, bugs_by_id, bugs_by_name):
+    for o in operators:
+        rec = None
+        if o.get('id'):
+            rec = bugs_by_id.get(o['id'])
+        if rec is None:
+            rec = bugs_by_name.get(normalize_name(o.get('name')))
+        o['bug_count'] = rec['bug_count'] if rec else 0
+        o['bug_price'] = rec['bug_price'] if rec else 0
+
+
 def agg(operators, key_field, keys):
     summary = []
     for key in keys:
@@ -203,6 +284,12 @@ def build(sheet_id, out_path, history_path):
         fetched.append(f'{tab_name} -> {category} ({len(tab_operators)} rows)')
 
     total_salary = sum(o['salary'] for o in operators)
+
+    bugs_by_id, bugs_by_name = fetch_bugs(sheet_id)
+    apply_bugs(operators, bugs_by_id, bugs_by_name)
+    total_bug_count = sum(o['bug_count'] for o in operators)
+    total_bug_price = sum(o['bug_price'] for o in operators)
+
     weekly_trend = update_history(history_path, operators)
 
     payload = {
@@ -213,9 +300,11 @@ def build(sheet_id, out_path, history_path):
             ['غیرمالی (N.F.B)', 0],
             ['مالی (F.B)', 0],
             ['اثرگذار (E.B)', 0],
-            ['مجموع کل', 0],
+            ['مجموع کل', total_bug_count],
         ],
         'total_salary': total_salary,
+        'total_bug_count': total_bug_count,
+        'total_bug_price': total_bug_price,
         'weekly_trend': weekly_trend,
         'operators': operators,
     }
@@ -225,6 +314,7 @@ def build(sheet_id, out_path, history_path):
 
     print(f'wrote {out_path}: ' + ', '.join(fetched) +
           f' | total {len(operators)} operators, total_salary={total_salary}, '
+          f'total_bug_count={total_bug_count}, total_bug_price={total_bug_price}, '
           f'history now has {len(weekly_trend)} week(s))')
 
 
