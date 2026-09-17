@@ -9,6 +9,22 @@ const CATEGORY_LABELS = { all: 'همه', freelancer: 'Freelancer', center_issue:
 const CHANGE_LIST_LIMIT = 20;
 const WEEKS_PER_MONTH = 4;
 
+function cssVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function chartPalette(){
+  return [
+    cssVar('--accent') || '#00B4FF',
+    cssVar('--accent-deep') || '#1656F5',
+    cssVar('--good') || '#1FA971',
+    cssVar('--warn') || '#E08A17',
+    cssVar('--danger') || '#E0453F',
+    cssVar('--violet') || '#7C5CE0',
+    '#4FC3E8', '#E0A5D8', '#8FD16B', '#E0C05C'
+  ];
+}
+
 async function loadData(){
   try{
     const res = await fetch(DATA_URL, { cache: 'no-store' });
@@ -134,14 +150,14 @@ function renderKPIs(){
   const totalSalary = operators.reduce((s,o)=>s+(o.salary||0),0);
 
   const kpis = [
-    {label:'تعداد کل اپراتورها', value: totalOperators.toLocaleString('en-US'), accent:'var(--teal)'},
-    {label:'مجموع سفارشات', value: totalOrders.toLocaleString('en-US'), accent:'var(--indigo)'},
-    {label:'میانگین امتیاز کلی', value: avgScore.toFixed(2) + ' <small>از ۵</small>', accent:'var(--amber)'},
-    {label:'مجموع حقوق (Total Salary)', value: totalSalary.toLocaleString('en-US'), accent:'var(--violet)'},
-    {label:'باگ‌های ثبت‌شده', value: totalBugs.toLocaleString('en-US'), accent: totalBugs>0 ? 'var(--coral)':'var(--teal)'},
+    {label:'تعداد کل اپراتورها', value: totalOperators.toLocaleString('en-US')},
+    {label:'مجموع سفارشات', value: totalOrders.toLocaleString('en-US')},
+    {label:'میانگین امتیاز کلی', value: avgScore.toFixed(2) + ' <small>از ۵</small>'},
+    {label:'مجموع حقوق (Total Salary)', value: totalSalary.toLocaleString('en-US')},
+    {label:'باگ‌های ثبت‌شده', value: totalBugs.toLocaleString('en-US'), danger: totalBugs > 0},
   ];
   document.getElementById('kpi-row').innerHTML = kpis.map(k => `
-    <div class="kpi" style="--accent:${k.accent}">
+    <div class="kpi${k.danger ? ' kpi-danger' : ''}">
       <div class="label">${k.label}</div>
       <div class="value num">${k.value}</div>
     </div>
@@ -165,7 +181,7 @@ function barChart(id, labels, values, color, horizontal=false){
       plugins:{ legend:{display:false} },
       scales:{
         x:{ grid:{display: horizontal}, ticks:{font:{size:11}} },
-        y:{ grid:{display: !horizontal, color:'#1D2229'}, ticks:{font:{size:11}}, beginAtZero:true }
+        y:{ grid:{display: !horizontal, color: cssVar('--line')}, ticks:{font:{size:11}}, beginAtZero:true }
       }
     }
   });
@@ -173,17 +189,17 @@ function barChart(id, labels, values, color, horizontal=false){
 
 function renderCharts(){
   Chart.defaults.font.family = "'IRANSans', 'Vazirmatn', sans-serif";
-  Chart.defaults.color = '#8B93A1';
-  Chart.defaults.borderColor = '#262B33';
+  Chart.defaults.color = cssVar('--ink-soft') || '#8B93A1';
+  Chart.defaults.borderColor = cssVar('--line') || '#262B33';
 
   const operators = periodOperators();
   const teamLeads = aggregateByLead(operators);
   const companies = aggregateByCompany(operators);
 
-  barChart('chartScore', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgScore.toFixed(2)), '#33D6BC');
-  barChart('chartOrders', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalOrders), '#7C93F0');
-  barChart('chartOct', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgOct.toFixed(1)), '#F0A94E');
-  barChart('chartSalary', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalSalary), '#B48CE0');
+  barChart('chartScore', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgScore.toFixed(2)), cssVar('--good'));
+  barChart('chartOrders', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalOrders), cssVar('--accent'));
+  barChart('chartOct', teamLeads.map(t=>t.lead), teamLeads.map(t=>+t.avgOct.toFixed(1)), cssVar('--warn'));
+  barChart('chartSalary', teamLeads.map(t=>t.lead), teamLeads.map(t=>t.totalSalary), cssVar('--violet'));
 
   destroyChart('chartCompany');
   charts['chartCompany'] = new Chart(document.getElementById('chartCompany'), {
@@ -192,13 +208,13 @@ function renderCharts(){
       labels: companies.map(c=>c.company),
       datasets:[{
         data: companies.map(c=>c.count),
-        backgroundColor:['#33D6BC','#7C93F0','#F0A94E','#E8615C','#B48CE0','#4FC3E8','#E0A5D8','#8FD16B','#E0C05C','#C79BE0'],
-        borderColor:'#161A1F', borderWidth:2
+        backgroundColor: chartPalette(),
+        borderColor: cssVar('--surface') || 'transparent', borderWidth:2
       }]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } } }
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } }
     }
   });
 
@@ -217,12 +233,12 @@ function renderTrendChart(){
   if(!leads.length || !numWeeks){
     destroyChart('chartTrend');
     wrap.insertAdjacentHTML('beforeend',
-      '<div class="trend-note" style="color:var(--muted);font-size:13px;padding:12px 0;">داده‌ای برای نمایش وجود نداره.</div>');
+      '<div class="trend-note" style="color:var(--ink-faint);font-size:13px;padding:12px 0;">داده‌ای برای نمایش وجود نداره.</div>');
     return;
   }
 
   const labels = Array.from({length: numWeeks}, (_, i) => 'هفته ' + (i + 1));
-  const palette = ['#33D6BC','#7C93F0','#F0A94E','#E8615C','#B48CE0','#4FC3E8','#E0A5D8','#8FD16B','#E0C05C','#C79BE0'];
+  const palette = chartPalette();
 
   const datasets = leads.map((lead, i) => {
     const subset = operators.filter(o => o.lead === lead);
@@ -250,10 +266,10 @@ function renderTrendChart(){
     data:{ labels, datasets },
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color:'#8B93A1' } } },
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } },
       scales:{
-        x:{ grid:{color:'#1D2229'}, ticks:{font:{size:11}} },
-        y:{ grid:{color:'#1D2229'}, ticks:{font:{size:11}}, suggestedMin:0, suggestedMax:5 }
+        x:{ grid:{color: cssVar('--line')}, ticks:{font:{size:11}} },
+        y:{ grid:{color: cssVar('--line')}, ticks:{font:{size:11}}, suggestedMin:0, suggestedMax:5 }
       }
     }
   });
@@ -266,7 +282,7 @@ function fmtDelta(v, digits, invert){
   const s = (v > 0 ? '+' : '') + v.toFixed(digits);
   const isGood = invert ? v < 0 : v > 0;
   const isBad = invert ? v > 0 : v < 0;
-  const color = isGood ? '#33D6BC' : (isBad ? '#E8615C' : 'var(--muted)');
+  const color = isGood ? cssVar('--good') : (isBad ? cssVar('--danger') : 'var(--ink-faint)');
   return `<span style="color:${color}">${s}</span>`;
 }
 
@@ -383,9 +399,9 @@ function wireChangeListEvents(){
 
 // ---------- Operators table ----------
 function scoreColor(score){
-  if(score >= 4) return {bg:'rgba(51,214,188,0.15)', fg:'#33D6BC'};
-  if(score >= 2.5) return {bg:'rgba(240,169,78,0.15)', fg:'#F0A94E'};
-  return {bg:'rgba(232,97,92,0.15)', fg:'#E8615C'};
+  if(score >= 4) return {bg:'var(--good-soft)', fg:cssVar('--good')};
+  if(score >= 2.5) return {bg:'var(--warn-soft)', fg:cssVar('--warn')};
+  return {bg:'var(--danger-soft)', fg:cssVar('--danger')};
 }
 
 function setupTableControls(){
@@ -492,6 +508,19 @@ function wirePeriodSelector(){
   });
 }
 
+function wireThemeToggle(){
+  const btn = document.getElementById('themeToggle');
+  if(!btn) return;
+  btn.addEventListener('click', ()=>{
+    const html = document.documentElement;
+    const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    try{ localStorage.setItem('dashboardTheme', next); }catch(e){}
+    // chart colors are read live from CSS variables, so re-render to pick up the new theme
+    if(DATA) renderCharts();
+  });
+}
+
 (async function init(){
   DATA = await loadData();
   renderMeta(DATA);
@@ -500,5 +529,6 @@ function wirePeriodSelector(){
   wireTableEvents();
   wireChangeListEvents();
   wirePeriodSelector();
+  wireThemeToggle();
   renderAll();
 })();
