@@ -137,6 +137,20 @@ html[data-theme="dark"] .bg-glow{
 }
 @media (prefers-reduced-motion: reduce){ .bg-glow{ animation: none; } }
 
+/* ---------- Brand watermark ---------- */
+.bg-watermark{
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url('../assets/logo.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(70vw, 640px) auto;
+  opacity: .05;
+}
+html[data-theme="dark"] .bg-watermark{
+  opacity: .07;
+  filter: brightness(1.6);
+}
+
 /* ---------- Theme toggle ---------- */
 .theme-toggle{
   position: fixed; bottom: 16px; left: 16px; z-index: 9999;
@@ -172,6 +186,8 @@ header h1{
 header .sub{color:var(--ink-soft); font-size:13px; margin-top:4px;}
 header .meta{ text-align:left; color:var(--ink-faint); font-size:12px; }
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--good);margin-left:6px;box-shadow:0 0 8px var(--good);}
+.brand{ display:flex; align-items:center; gap:14px; }
+.brand-logo{ height:30px; width:auto; display:block; flex-shrink:0; }
 
 /* ---------- Category / period bar ---------- */
 .category-bar{
@@ -281,13 +297,6 @@ table.ops tbody tr:hover{background:var(--surface-tint);}
   background:var(--danger-soft); border:1px solid var(--danger); color:var(--danger);
   padding:10px 14px; border-radius:var(--radius-sm); font-size:13px; margin-bottom:16px;
 }
-.compact-list{padding:14px 16px 8px;}
-.compact-list table.ops{font-size:11.5px;}
-.compact-list table.ops thead th{padding:6px 7px; font-size:10px; white-space:normal;}
-.compact-list table.ops tbody td{padding:6px 7px; white-space:nowrap;}
-.compact-list .table-scroll{max-height:280px;}
-.compact-list .search-row{margin-bottom:8px;}
-.compact-list .search-row select{font-size:12px; padding:6px 10px;}
 
 footer{
   position: relative; z-index: 1;
