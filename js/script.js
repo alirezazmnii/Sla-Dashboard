@@ -124,7 +124,9 @@ function aggregateByLead(operators){
     const avgScore = count ? subset.reduce((s,o)=>s+(o.avg_score||0),0)/count : 0;
     const avgOct = count ? subset.reduce((s,o)=>s+(o._oct != null ? o._oct : opAvgOct(o)),0)/count : 0;
     const totalSalary = subset.reduce((s,o)=>s+(o.salary||0),0);
-    return { lead, count, totalOrders, avgOct, avgScore, totalSalary };
+    const totalBugCount = subset.reduce((s,o)=>s+(o.bug_count||0),0);
+    const totalBugPrice = subset.reduce((s,o)=>s+(o.bug_price||0),0);
+    return { lead, count, totalOrders, avgOct, avgScore, totalSalary, totalBugCount, totalBugPrice };
   });
 }
 
@@ -146,15 +148,17 @@ function renderKPIs(){
   const totalOperators = operators.length;
   const totalOrders = operators.reduce((s,o)=>s+(o.total_orders||0),0);
   const avgScore = totalOperators ? (operators.reduce((s,o)=>s+(o.avg_score||0),0)/totalOperators) : 0;
-  const totalBugs = (DATA.bugs.find(b=>b[0].includes('مجموع')) || [null,0])[1];
   const totalSalary = operators.reduce((s,o)=>s+(o.salary||0),0);
+  const totalBugCount = operators.reduce((s,o)=>s+(o.bug_count||0),0);
+  const totalBugPrice = operators.reduce((s,o)=>s+(o.bug_price||0),0);
 
   const kpis = [
     {label:'تعداد کل اپراتورها', value: totalOperators.toLocaleString('en-US')},
     {label:'مجموع سفارشات', value: totalOrders.toLocaleString('en-US')},
     {label:'میانگین امتیاز کلی', value: avgScore.toFixed(2) + ' <small>از ۵</small>'},
     {label:'مجموع حقوق (Total Salary)', value: totalSalary.toLocaleString('en-US')},
-    {label:'باگ‌های ثبت‌شده', value: totalBugs.toLocaleString('en-US'), danger: totalBugs > 0},
+    {label:'باگ‌های ثبت‌شده', value: totalBugCount.toLocaleString('en-US'), danger: totalBugCount > 0},
+    {label:'مجموع مبلغ باگ‌ها', value: totalBugPrice.toLocaleString('en-US'), danger: totalBugPrice > 0},
   ];
   document.getElementById('kpi-row').innerHTML = kpis.map(k => `
     <div class="kpi${k.danger ? ' kpi-danger' : ''}">
@@ -217,6 +221,32 @@ function renderCharts(){
       plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } }
     }
   });
+
+  destroyChart('chartBugs');
+  const bugLeads = teamLeads.filter(t=>t.totalBugPrice > 0);
+  const bugWrap = document.getElementById('chartBugs').parentElement;
+  const oldBugNote = bugWrap.querySelector('.bugs-note');
+  if(oldBugNote) oldBugNote.remove();
+  if(!bugLeads.length){
+    bugWrap.insertAdjacentHTML('beforeend',
+      '<div class="bugs-note" style="color:var(--ink-faint);font-size:13px;padding:12px 0;">باگی با مبلغ ثبت‌شده در این بازه وجود نداره.</div>');
+  } else {
+    charts['chartBugs'] = new Chart(document.getElementById('chartBugs'), {
+      type:'doughnut',
+      data:{
+        labels: bugLeads.map(t=>t.lead),
+        datasets:[{
+          data: bugLeads.map(t=>t.totalBugPrice),
+          backgroundColor: chartPalette(),
+          borderColor: cssVar('--surface') || 'transparent', borderWidth:2
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:'right', labels:{ boxWidth:10, font:{size:10.5}, color: cssVar('--ink-soft') } } }
+      }
+    });
+  }
 
   renderTrendChart();
 }
@@ -404,6 +434,15 @@ function scoreColor(score){
   return {bg:'var(--danger-soft)', fg:cssVar('--danger')};
 }
 
+// Risk color scaled relative to the worst value currently on screen, so it
+// stays meaningful regardless of the absolute numbers in the sheet.
+function bugRiskColor(count, price, maxCount, maxPrice){
+  const ratio = Math.max(maxCount ? count / maxCount : 0, maxPrice ? price / maxPrice : 0);
+  if(ratio <= 0) return {bg:'transparent', fg:'var(--ink-faint)'};
+  if(ratio < 0.34) return {bg:'var(--warn-soft)', fg:cssVar('--warn')};
+  return {bg:'var(--danger-soft)', fg:cssVar('--danger')};
+}
+
 function setupTableControls(){
   const leadFilter = document.getElementById('leadFilter');
   const shiftFilter = document.getElementById('shiftFilter');
@@ -449,8 +488,11 @@ function renderTable(){
     return ((va||0) - (vb||0)) * sortDir;
   });
   rowCount.textContent = rows.length.toLocaleString('en-US') + ' اپراتور';
+  const maxBugCount = rows.reduce((m,o)=>Math.max(m, o.bug_count||0), 0);
+  const maxBugPrice = rows.reduce((m,o)=>Math.max(m, o.bug_price||0), 0);
   tbody.innerHTML = rows.map(o => {
     const sc = scoreColor(o.avg_score);
+    const bc = bugRiskColor(o.bug_count||0, o.bug_price||0, maxBugCount, maxBugPrice);
     return `<tr>
       <td>${o.name}</td>
       <td>${o.company}</td>
@@ -459,7 +501,8 @@ function renderTable(){
       <td class="num">${(o.total_orders||0).toLocaleString('en-US')}</td>
       <td><span class="score-pill num" style="background:${sc.bg};color:${sc.fg}">${o.avg_score.toFixed(2)}</span></td>
       <td class="num">${(o.salary||0).toLocaleString('en-US')}</td>
-      <td class="num">${(o.bug_price||0).toLocaleString('en-US')}</td>
+      <td class="num"><span class="score-pill num" style="background:${bc.bg};color:${bc.fg}">${(o.bug_count||0).toLocaleString('en-US')}</span></td>
+      <td class="num"><span class="score-pill num" style="background:${bc.bg};color:${bc.fg}">${(o.bug_price||0).toLocaleString('en-US')}</span></td>
     </tr>`;
   }).join('');
 }
