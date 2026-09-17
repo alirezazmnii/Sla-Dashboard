@@ -4,10 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>داشبورد عملکرد اپراتورها | SLA Ops</title>
+<script>
+  // اعمال تم ذخیره‌شده قبل از رندر صفحه، تا چشمک نزنه
+  (function () {
+    try {
+      var saved = localStorage.getItem('dashboardTheme');
+      var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
+
+<div class="bg-glow"></div>
+
+<button class="theme-toggle" id="themeToggle" title="تغییر تم" aria-label="تغییر تم">
+  <span class="icon-sun">☀️</span>
+  <span class="icon-moon">🌙</span>
+</button>
 
 <header>
   <div>
